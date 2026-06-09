@@ -28,7 +28,7 @@ httpx==0.28.0
 boto3==1.35.0
 stripe==10.12.0
 sentry-sdk[celery]==2.15.0
-python-multipart==0.0.27
+python-multipart==0.0.32
 
 pyjwt==2.10.1
 cryptography==44.0.2
