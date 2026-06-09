@@ -36,7 +36,7 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy==0.48b0",
     "opentelemetry-instrumentation-redis==0.48b0",
     "opentelemetry-instrumentation-httpx==0.48b0",
-    "cachetools==5.5.0",
+    "cachetools==7.1.4",
 ]
 
 [project.optional-dependencies]
