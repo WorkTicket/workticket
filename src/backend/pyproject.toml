@@ -23,7 +23,7 @@ dependencies = [
     "stripe==10.12.0",
     "sentry-sdk[celery]==2.15.0",
     "python-multipart>=0.0.27",
-    "pyjwt==2.10.1",
+    "pyjwt==2.13.0",
     "cryptography==44.0.2",
     "Pillow==11.0.0",
     "python-magic==0.4.27",
