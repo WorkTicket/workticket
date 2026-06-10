@@ -26,7 +26,7 @@ class DeadLetterJob(Base):
     trace_id = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
     # TTL for automatic cleanup (30 days)
-    expires_at = Column(DateTime(timezone=True), default=lambda: _utcnow() + timedelta(days=30), index=True)
+    expires_at = Column(DateTime(timezone=True), default=lambda: _utcnow() + timedelta(days=30))
 
     __table_args__ = (
         Index("ix_dead_letter_jobs_job_id", "job_id"),

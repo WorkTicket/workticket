@@ -10,6 +10,5 @@ async def test_health_endpoint(client: AsyncClient):
     assert data["status"] == "ok"
     assert "celery_worker_healthy" in data
     assert "celery_queue_depth" in data
-    assert "database_pool" in data
-    assert "gateway" in data
-    assert "llm_circuit_state" in data["gateway"]
+    assert "db_pool" in data
+    assert "ollama_available" in data

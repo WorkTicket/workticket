@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 _KEY_VERSION = 1
 _NONCE_LENGTH = 12
+_ENCRYPTION_KEY_ENV = "PII_ENCRYPTION_KEY"
 def _get_default_salt() -> bytes:
     """Get the PBKDF2 salt from configuration.
 
@@ -60,7 +61,6 @@ def _get_default_salt() -> bytes:
 _DEFAULT_SALT = _get_default_salt()
 _DEFAULT_ITERATIONS = 600_000
 _FORMAT_PREFIX = f"v{_KEY_VERSION}:"
-_ENCRYPTION_KEY_ENV = "PII_ENCRYPTION_KEY"
 
 
 def derive_key(key_material: str, salt: bytes = _DEFAULT_SALT, iterations: int = _DEFAULT_ITERATIONS) -> bytes:

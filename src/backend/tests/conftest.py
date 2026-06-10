@@ -14,15 +14,24 @@ from app.main import app
 from app.notifications.models import PushToken  # noqa: F401
 from app.tracing.models import ExecutionTrace  # noqa: F401
 
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/workticket_test"
+TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@postgres:5432/workticket_test_beta"
 
-_test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, pool_pre_ping=True)
-TestSessionLocal = async_sessionmaker(_test_engine, class_=AsyncSession, expire_on_commit=False)
+_test_engine = None
+TestSessionLocal = None
+
+
+def _ensure_test_engine():
+    global _test_engine, TestSessionLocal
+    if _test_engine is None:
+        _test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, pool_pre_ping=True)
+        TestSessionLocal = async_sessionmaker(_test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
 async def setup_db():
+    _ensure_test_engine()
     async with _test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     async with TestSessionLocal() as session:
         existing = await session.execute(
@@ -50,6 +59,7 @@ async def setup_db():
             session.add(user)
             await session.commit()
     yield
+    _ensure_test_engine()
     async with _test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
@@ -66,6 +76,7 @@ def _clear_dependency_overrides():
 
 
 async def override_get_db() -> AsyncGenerator[AsyncSession, Any]:
+    _ensure_test_engine()
     async with TestSessionLocal() as session:
         try:
             yield session
@@ -90,7 +101,7 @@ async def override_get_current_user() -> User:
 @pytest.fixture
 async def client() -> AsyncGenerator[AsyncClient, Any]:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"Origin": "http://localhost:3000"}) as ac:
         yield ac
 
 

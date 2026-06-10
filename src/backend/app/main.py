@@ -986,6 +986,21 @@ async def health():
     except Exception as e:
         db_pool = {"error": str(e)}
 
+    celery_queue_depth = {}
+    try:
+        import redis as _sync_redis
+
+        settings = get_settings()
+        broker_url = getattr(settings, "redis_broker_url", "") or settings.redis_url
+        _r = _sync_redis.from_url(broker_url, socket_connect_timeout=1)
+        for q in ("default", "ai_text", "ai_audio", "ai_image", "beat"):
+            qlen = _r.llen(q)
+            if qlen > 0:
+                celery_queue_depth[q] = qlen
+        _r.close()
+    except Exception:
+        pass
+
     status = "ok" if db_healthy else "degraded"
 
     return {
@@ -996,6 +1011,7 @@ async def health():
         "ollama_available": ai_health.get("ollama_available", False),
         "whisper_available": ai_health.get("whisper_available", False),
         "celery_worker_healthy": celery_healthy,
+        "celery_queue_depth": celery_queue_depth,
         "db_pool": db_pool,
     }
 
