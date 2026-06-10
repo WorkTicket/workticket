@@ -334,11 +334,11 @@ def merge_dlq_fallback_files(self):
 
     import os as _os
 
-    _DLQ_FALLBACK_DIR = _os.getenv("DLQ_FALLBACK_DIR", "/tmp/workticket/dlq_fallback")
-    if not _os.path.exists(_DLQ_FALLBACK_DIR):
+    _dlq_fallback_dir = _os.getenv("DLQ_FALLBACK_DIR", "/tmp/workticket/dlq_fallback")
+    if not _os.path.exists(_dlq_fallback_dir):
         return {"status": "no_fallback_dir"}
 
-    result = _merge_dlq_fallback_files(_DLQ_FALLBACK_DIR)
+    result = _merge_dlq_fallback_files(_dlq_fallback_dir)
     return {"status": "completed", **result}
 
 
@@ -359,16 +359,16 @@ def replay_dlq_fallback(self):
     import json as _json
     import os as _os
 
-    _DLQ_FALLBACK_DIR = _os.getenv("DLQ_FALLBACK_DIR", "/tmp/workticket/dlq_fallback")
-    _DLQ_FALLBACK_PATH = _os.path.join(_DLQ_FALLBACK_DIR, "workticket_dlq_fallback.merged.jsonl")
+    _dlq_fallback_dir = _os.getenv("DLQ_FALLBACK_DIR", "/tmp/workticket/dlq_fallback")
+    _dlq_fallback_path = _os.path.join(_dlq_fallback_dir, "workticket_dlq_fallback.merged.jsonl")
 
-    if not _os.path.exists(_DLQ_FALLBACK_PATH):
+    if not _os.path.exists(_dlq_fallback_path):
         return {"status": "no_fallback_file"}
 
     try:
         from app.monitoring.prometheus import set_dlq_fallback_file_size
 
-        _file_size = _os.path.getsize(_DLQ_FALLBACK_PATH)
+        _file_size = _os.path.getsize(_dlq_fallback_path)
         set_dlq_fallback_file_size(_file_size)
     except Exception:
         pass
@@ -381,7 +381,7 @@ def replay_dlq_fallback(self):
         nonlocal replayed, errors, remaining_lines
         async with AsyncSessionLocal() as db:
             try:
-                with open(_DLQ_FALLBACK_PATH) as f:
+                with open(_dlq_fallback_path) as f:
                     for line in f:
                         line = line.strip()
                         if not line:
@@ -424,7 +424,7 @@ def replay_dlq_fallback(self):
                     await db.commit()
                     logger.info("Replayed %d entries from DLQ fallback file", replayed)
                 else:
-                    remaining_lines = _get_non_empty_lines(_DLQ_FALLBACK_PATH)
+                    remaining_lines = _get_non_empty_lines(_dlq_fallback_path)
 
             except Exception as e:
                 logger.error("DLQ fallback replay failed: %s", e)
@@ -448,7 +448,7 @@ def replay_dlq_fallback(self):
     # If all entries replayed successfully, remove the fallback file
     if replayed > 0 and errors == 0 and not remaining_lines:
         try:
-            _os.remove(_DLQ_FALLBACK_PATH)
+            _os.remove(_dlq_fallback_path)
             logger.info("DLQ fallback file removed after successful replay")
         except Exception as e:
             logger.warning("Failed to remove DLQ fallback file: %s", e)

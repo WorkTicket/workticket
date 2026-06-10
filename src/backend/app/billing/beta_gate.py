@@ -69,7 +69,7 @@ class BetaGate:
     def check_billing(self) -> bool:
         try:
             from app.billing.credits import auto_credit_failed_job, grant_credit
-            from app.billing.quota_engine import quota_engine  # noqa: F401
+            from app.billing.quota_engine import quota_engine
             from app.billing.reconciliation import reconcile_cost
 
             return all(

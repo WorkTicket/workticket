@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     file \
     curl \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system appgroup \
     && adduser --system --no-create-home --ingroup appgroup appuser
@@ -45,12 +46,14 @@ COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
 COPY . .
 RUN chown -R appuser:appgroup /app
 
+RUN chmod +x /app/entrypoint.sh
+
 USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
     CMD python -c "import http.client; c=http.client.HTTPConnection('localhost:8000',timeout=5); c.request('GET','/livez'); r=c.getresponse(); exit(0) if r.status==200 else exit(1)"
 
 ENV UVICORN_WORKERS=4
-CMD uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers $UVICORN_WORKERS
+ENTRYPOINT ["/app/entrypoint.sh"]

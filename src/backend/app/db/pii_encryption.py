@@ -52,7 +52,7 @@ class PiiEncryptor:
     def _get_v1_key(self) -> bytes:
         """Legacy key derived with the v1 salt for reading old data."""
         if self._v1_key is None:
-            raw = os.environ.get("PII_ENCRYPTION_KEY", "") or os.environ.get("PUSH_TOKEN_ENCRYPTION_KEY", "")
+            raw = os.environ.get("PII_ENCRYPTION_KEY", "")
             if raw:
                 self._v1_key = derive_key(raw, salt=_V1_SALT)
             else:

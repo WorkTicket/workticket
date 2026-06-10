@@ -20,7 +20,7 @@ from app.estimates.models import (  # noqa: F401
     HistoricalJobData,
     Service,
 )
-from app.jobs.models import *  # noqa: F401,F403
+from app.jobs.models import *  # noqa: F403
 from app.tracing.models import ExecutionTrace  # noqa: F401
 
 config = context.config

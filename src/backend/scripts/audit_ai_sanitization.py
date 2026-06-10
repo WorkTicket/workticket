@@ -44,9 +44,7 @@ def _relpath(abspath: str) -> str:
 def _get_python_files(root: str) -> list[str]:
     matches = []
     for dirpath, _dirnames, filenames in os.walk(root):
-        for f in filenames:
-            if f.endswith(".py"):
-                matches.append(os.path.join(dirpath, f))
+        matches.extend(os.path.join(dirpath, f) for f in filenames if f.endswith(".py"))
     return sorted(matches)
 
 
@@ -84,7 +82,7 @@ class OrchestratorCallVisitor(ast.NodeVisitor):
                 alias = self._orchestrator_alias or "orchestrator"
                 for meth in ORCHESTRATOR_METHODS:
                     if full == f"{alias}.{meth}" or full.endswith(f".{meth}"):
-                        if full == f"{alias}.{meth}" or (len(chain) >= 2 and chain[0] == alias):  # noqa: SIM102
+                        if full == f"{alias}.{meth}" or (len(chain) >= 2 and chain[0] == alias):
                             self.errors.append(
                                 f"{_relpath(self.filepath)}:{node.lineno}: "
                                 f"'{full}' — raw orchestrator call outside sanctioned file. "

@@ -60,7 +60,7 @@ async def get_trace(
     if completed:
         total = round(sum(s.duration_ms for s in completed), 2)
 
-    statuses = set(s.status for s in steps)
+    statuses = {s.status for s in steps}
     if "failed" in statuses:
         overall = "failed"
     elif "started" in statuses:
@@ -92,14 +92,14 @@ async def get_job_traces(
     if not steps:
         return []
 
-    trace_ids = set(str(s.trace_id) for s in steps)
+    trace_ids = {str(s.trace_id) for s in steps}
     traces = []
     for tid in trace_ids:
         trace_steps = [s for s in steps if str(s.trace_id) == tid]
         trace_steps.sort(key=lambda s: s.started_at)
         completed = [s for s in trace_steps if s.duration_ms is not None]
         total = round(sum(s.duration_ms for s in completed), 2) if completed else None
-        statuses = set(s.status for s in trace_steps)
+        statuses = {s.status for s in trace_steps}
         if "failed" in statuses:
             overall = "failed"
         elif "started" in statuses:
@@ -148,7 +148,7 @@ async def list_recent_traces(
     )
     steps = result.scalars().all()
 
-    trace_ids = set(str(s.trace_id) for s in steps)
+    trace_ids = {str(s.trace_id) for s in steps}
     traces = []
     for tid in trace_ids:
         trace_steps = [s for s in steps if str(s.trace_id) == tid]

@@ -192,7 +192,6 @@ class AbuseDetector:
                     "Redis spike check failed for company %s — treating as no spike (fail-safe): %s", company_id, e
                 )
                 # Fall back to local state when Redis fails
-                pass
 
         # Fallback to local state when Redis is unavailable or failed
         logger.warning(

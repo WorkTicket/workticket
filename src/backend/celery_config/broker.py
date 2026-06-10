@@ -267,13 +267,13 @@ def _verify_task_payload(payload: dict, signature: str) -> bool:
 def enqueue_job_task(
     job_id: str,
     company_id: str,
-    user_id: str = None,
-    audio_url: str = None,
-    image_urls: list = None,
+    user_id: str | None = None,
+    audio_url: str | None = None,
+    image_urls: list | None = None,
     description: str = "",
     trade_type: str = "",
-    trace_id: str = None,
-    request_id: str = None,
+    trace_id: str | None = None,
+    request_id: str | None = None,
     estimated_cost_usd: float = 0.0,
     reserved_acu: float = 0.0,
     queue: str = "default",
@@ -396,8 +396,8 @@ def _move_to_dead_letter(
     failure_category: str,
     last_state: str,
     retry_count: int,
-    trace_id: str = None,
-    user_id: str = None,
+    trace_id: str | None = None,
+    user_id: str | None = None,
 ):
     # V2-FIX: Track total attempts per job across retry layers to prevent infinite retry
     if job_id:
@@ -487,3 +487,26 @@ def _move_to_dead_letter(
             increment_counter("dlq_write_failures_total", {"failure_category": failure_category, "job_id": job_id})
         except Exception as _e:
             logger.debug("Failed to increment DLQ write failures metric: %s", _e)
+
+        # V3-FIX: JSONL fallback writer — persists DLQ entries to disk when DB is unreachable
+        try:
+            _fallback_dir = os.environ.get("DLQ_FALLBACK_DIR", "/tmp/workticket/dlq_fallback")
+            os.makedirs(_fallback_dir, exist_ok=True)
+            _fallback_path = os.path.join(_fallback_dir, f"dlq_fallback_{os.getpid()}.jsonl")
+            _fallback_entry = {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "job_id": job_id,
+                "company_id": company_id,
+                "user_id": user_id,
+                "task_name": task_name,
+                "error_message": _truncated,
+                "failure_category": failure_category,
+                "last_state": last_state,
+                "retry_count": retry_count,
+                "trace_id": trace_id,
+            }
+            with open(_fallback_path, "a", encoding="utf-8") as _fh:
+                _fh.write(json.dumps(_fallback_entry, sort_keys=True, default=str) + "\n")
+            logger.info("DLQ entry written to JSONL fallback: %s", _fallback_path)
+        except Exception as _fb_err:
+            logger.critical("JSONL fallback writer also failed: %s — DLQ entry permanently lost", _fb_err)

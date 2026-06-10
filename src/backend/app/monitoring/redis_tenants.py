@@ -44,7 +44,7 @@ class TenantRedisMonitor:
             return None
 
     def _get_tenant_id_from_key(self, key: str) -> str | None:
-        for _prefix_key, prefix in _TENANT_NAMESPACE_PREFIXES.items():
+        for prefix in _TENANT_NAMESPACE_PREFIXES.values():
             if key.startswith(prefix):
                 rest = key[len(prefix) :]
                 if ":" in rest:

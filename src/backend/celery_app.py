@@ -2,11 +2,13 @@
 from celery_config.beat import _acquire_beat_lock, get_effective_beat_schedule, task_routes  # noqa: F401
 from celery_config.broker import PAYLOAD_VERSION, _move_to_dead_letter, enqueue_job_task  # noqa: F401
 from celery_config.worker import _run_async, celery_app  # noqa: F401
+from tasks import (
+    billing_tasks,  # noqa: F401
+    maintenance,  # noqa: F401
+)
 
 # Task imports (register them with the Celery app)
 from tasks.job_tasks import process_job_task  # noqa: F401
-from tasks import maintenance  # noqa: F401
-from tasks import billing_tasks  # noqa: F401
 
 # ---- Static analysis test patterns (preserved across refactoring) ----
 

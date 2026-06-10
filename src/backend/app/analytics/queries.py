@@ -57,16 +57,15 @@ async def get_tttj(
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(stmt)
-        rows = []
-        for row in result:
-            rows.append(
-                {
-                    "company_id": str(row.company_id),
-                    "avg_tttj_hours": round(row.avg_tttj_seconds / 3600, 2) if row.avg_tttj_seconds else 0,
-                    "median_tttj_hours": round(row.median_tttj_seconds / 3600, 2) if row.median_tttj_seconds else 0,
-                    "sample_size": row.sample_size or 0,
-                }
-            )
+        rows = [
+            {
+                "company_id": str(row.company_id),
+                "avg_tttj_hours": round(row.avg_tttj_seconds / 3600, 2) if row.avg_tttj_seconds else 0,
+                "median_tttj_hours": round(row.median_tttj_seconds / 3600, 2) if row.median_tttj_seconds else 0,
+                "sample_size": row.sample_size or 0,
+            }
+            for row in result
+        ]
         return rows
 
 

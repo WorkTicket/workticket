@@ -23,6 +23,7 @@ Usage:
 
 import logging
 import threading
+from typing import ClassVar
 
 from sqlalchemy import String
 from sqlalchemy.engine import Dialect
@@ -101,7 +102,7 @@ class EncryptedString(TypeDecorator):
 class PiiAccessAudit:
     """Tracks PII access for compliance audit logging."""
 
-    _access_log: list[dict] = []
+    _access_log: ClassVar[list[dict]] = []
     _max_entries = 10000
     _lock = threading.Lock()
 

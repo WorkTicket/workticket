@@ -145,7 +145,7 @@ async def run_backup(source_params: dict, backup_file: str) -> bool:
         "-v",
     ]
 
-    logger.info("Running backup: %s", " ".join(cmd[:-1] + [backup_file]))
+    logger.info("Running backup: %s", " ".join([*cmd[:-1], backup_file]))
     try:
         result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:

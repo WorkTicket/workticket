@@ -66,7 +66,7 @@ async def record_trace(
     step_name: str,
     status: str = "started",
     job_id: str | None = None,
-    company_id: str = None,
+    company_id: str | None = None,
     duration_ms: float | None = None,
     metadata: dict | None = None,
     error_message: str | None = None,

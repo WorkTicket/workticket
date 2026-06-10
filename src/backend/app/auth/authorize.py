@@ -5,7 +5,7 @@ Replaces inline role checks (current_user.role not in (...)) with
 reusable, auditable authorization gates.
 
 Usage:
-    from app.auth.authorize import require_roles, require_admin, require_staff, require_owner
+    from app.auth.authorize import RequireRoles, require_admin, require_staff, require_owner
 
     # As a FastAPI dependency (recommended - idiomatic FastAPI):
     @router.post("", dependencies=[Depends(require_admin)])
@@ -16,9 +16,9 @@ Usage:
     async def staff_endpoint(..., _: None = Depends(require_staff)): ...
 
     # Convenience aliases:
-    #   require_admin  = require_roles("admin", "owner")
-    #   require_owner  = require_roles("owner")
-    #   require_staff  = require_roles("admin", "owner", "dispatcher")
+    #   require_admin  = RequireRoles("admin", "owner")
+    #   require_owner  = RequireRoles("owner")
+    #   require_staff  = RequireRoles("admin", "owner", "dispatcher")
 """
 
 import logging
@@ -33,14 +33,14 @@ from app.jobs.models import User, UserRole
 logger = logging.getLogger(__name__)
 
 
-class require_roles:
+class RequireRoles:
     """FastAPI dependency class that gates access by user role.
 
     Checks the authenticated user's role against the allowed set.
     Raises 401 if unauthenticated, 403 if unauthorized.
 
     Example:
-        @router.post("/admin/refund", dependencies=[Depends(require_roles("owner", "admin"))])
+        @router.post("/admin/refund", dependencies=[Depends(RequireRoles("owner", "admin"))])
         async def admin_refund(...): ...
     """
 
@@ -62,10 +62,10 @@ class require_roles:
 
 
 # Convenience aliases matching UserRole enum values
-require_admin = require_roles(UserRole.admin.value, UserRole.owner.value)
-require_owner = require_roles(UserRole.owner.value)
-require_staff = require_roles(UserRole.admin.value, UserRole.owner.value, UserRole.dispatcher.value)
-require_any_authenticated = require_roles(
+require_admin = RequireRoles(UserRole.admin.value, UserRole.owner.value)
+require_owner = RequireRoles(UserRole.owner.value)
+require_staff = RequireRoles(UserRole.admin.value, UserRole.owner.value, UserRole.dispatcher.value)
+require_any_authenticated = RequireRoles(
     UserRole.owner.value,
     UserRole.admin.value,
     UserRole.dispatcher.value,
@@ -78,10 +78,10 @@ def require_roles_decorator(*allowed_roles: str) -> Callable:
 
     Wraps an endpoint function so that current_user (resolved by FastAPI
     dependency injection) is checked against allowed_roles before the
-    endpoint executes. Behaves identically to the require_roles dependency
+    endpoint executes. Behaves identically to the RequireRoles dependency
     class but is applied as a decorator.
 
-    Use the dependency class (require_roles with Depends) for new code;
+    Use the dependency class (RequireRoles with Depends) for new code;
     this decorator exists for backward compatibility and cases where
     wrapping the function directly is preferred.
     """

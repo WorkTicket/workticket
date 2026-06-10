@@ -7,7 +7,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -24,8 +24,8 @@ from app.billing.router import router as billing_router
 from app.config import FeatureFlags, get_settings
 from app.estimates.router import router as estimates_router
 from app.exceptions import setup_exception_handlers
-from app.jobs.router import router as jobs_router
 from app.integrations.router import router as integrations_router
+from app.jobs.router import router as jobs_router
 from app.logging_config import setup_logging
 from app.media.router import router as media_router
 from app.middleware.tracing import tracing_middleware
@@ -486,6 +486,8 @@ class RBACEnforcementMiddleware(BaseHTTPMiddleware):
                 user = await get_current_user(request)
                 request.state.current_user = user
                 await enforce_route_rbac(request, current_user=user)
+            except HTTPException:
+                raise
             except Exception:
                 return await call_next(request)
         return await call_next(request)

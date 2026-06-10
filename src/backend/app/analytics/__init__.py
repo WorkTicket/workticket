@@ -15,17 +15,17 @@ from app.analytics.events import (
 )
 
 __all__ = [
-    "log_event",
-    "AnalyticsEvent",
-    "EVENT_JOB_CREATED",
+    "EVENT_AI_OUTPUT_EDITED",
     "EVENT_AI_OUTPUT_GENERATED",
     "EVENT_AI_OUTPUT_VIEWED",
-    "EVENT_AI_OUTPUT_EDITED",
     "EVENT_JOB_APPROVED_WITHOUT_CHANGES",
     "EVENT_JOB_APPROVED_WITH_CHANGES",
-    "EVENT_JOB_SENT",
+    "EVENT_JOB_CREATED",
     "EVENT_JOB_REOPENED",
-    "EVENT_VOICE_USED",
-    "EVENT_PHOTO_UPLOADED",
+    "EVENT_JOB_SENT",
     "EVENT_OFFLINE_SYNC_COMPLETED",
+    "EVENT_PHOTO_UPLOADED",
+    "EVENT_VOICE_USED",
+    "AnalyticsEvent",
+    "log_event",
 ]

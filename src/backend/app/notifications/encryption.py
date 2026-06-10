@@ -14,10 +14,16 @@ def _get_fernet():
     from app.config import get_settings
 
     settings = get_settings()
-    raw_key = settings.push_token_encryption_key or settings.celery_task_signing_key
+    raw_key = settings.push_token_encryption_key
     if not raw_key or raw_key == "__REQUIRED__":
-        logger.warning("push_token_encryption_key not set — push tokens will be stored in plaintext")
-        return None
+        if settings.debug:
+            raw_key = "workticket-dev-push-token-key-not-for-production"
+        else:
+            raise ValueError(
+                "push_token_encryption_key is not set. "
+                "A dedicated push token encryption key is required for production. "
+                "Do not reuse other cryptographic keys."
+            )
     key_bytes = hashlib.sha256(raw_key.encode()).digest()
     encoded_key = base64.urlsafe_b64encode(key_bytes)
     try:

@@ -30,8 +30,8 @@ def _is_ai_disabled() -> bool:
 def process_ai_text(
     self,
     prompt: str,
-    company_id: str = None,
-    user_id: str = None,
+    company_id: str | None = None,
+    user_id: str | None = None,
     model: str = "llama3.1",
     _hmac: str = "",
     payload_version: int = 1,
@@ -186,7 +186,7 @@ def process_ai_text(
 
 
 @celery_app.task(bind=True, max_retries=3, queue="ai_audio", acks_late=True, reject_on_worker_lost=True)
-def process_ai_audio(self, audio_url: str, company_id: str = None, user_id: str = None, _hmac: str = ""):
+def process_ai_audio(self, audio_url: str, company_id: str | None = None, user_id: str | None = None, _hmac: str = ""):
     if _is_ai_disabled():
         logger.debug("AI disabled — skipping process_ai_audio task")
         return {"status": "skipped", "reason": "ai_disabled"}
@@ -324,7 +324,7 @@ def process_ai_audio(self, audio_url: str, company_id: str = None, user_id: str 
 
 @celery_app.task(bind=True, max_retries=3, queue="ai_image", acks_late=True, reject_on_worker_lost=True)
 def process_ai_image(
-    self, image_urls: list, company_id: str = None, user_id: str = None, prompt: str = "", _hmac: str = ""
+    self, image_urls: list, company_id: str | None = None, user_id: str | None = None, prompt: str = "", _hmac: str = ""
 ):
     if _is_ai_disabled():
         logger.debug("AI disabled — skipping process_ai_image task")

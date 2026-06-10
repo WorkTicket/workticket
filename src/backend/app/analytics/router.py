@@ -306,20 +306,19 @@ async def list_analytics_events_cursor(
     if pagination.direction == "prev":
         events = list(reversed(events))
 
-    event_dicts = []
-    for event in events:
-        event_dicts.append(
-            {
-                "id": str(event.id),
-                "timestamp": event.timestamp.isoformat() if event.timestamp else None,
-                "client_timestamp": event.client_timestamp.isoformat() if event.client_timestamp else None,
-                "event_name": event.event_name,
-                "user_id": event.user_id,
-                "company_id": str(event.company_id),
-                "job_id": str(event.job_id) if event.job_id else None,
-                "metadata": event.event_metadata,
-            }
-        )
+    event_dicts = [
+        {
+            "id": str(event.id),
+            "timestamp": event.timestamp.isoformat() if event.timestamp else None,
+            "client_timestamp": event.client_timestamp.isoformat() if event.client_timestamp else None,
+            "event_name": event.event_name,
+            "user_id": event.user_id,
+            "company_id": str(event.company_id),
+            "job_id": str(event.job_id) if event.job_id else None,
+            "metadata": event.event_metadata,
+        }
+        for event in events
+    ]
 
     next_cursor = None
     prev_cursor = None

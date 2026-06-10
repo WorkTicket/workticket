@@ -176,12 +176,12 @@ def process_job_task(
     self,
     job_id: str,
     company_id: str,
-    user_id: str = None,
-    audio_url: str = None,
-    image_urls: list = None,
+    user_id: str | None = None,
+    audio_url: str | None = None,
+    image_urls: list | None = None,
     description: str = "",
     trade_type: str = "",
-    trace_id: str = None,
+    trace_id: str | None = None,
     estimated_cost_usd: float = 0.0,
     reserved_acu: float = 0.0,
     payload_version: int = PAYLOAD_VERSION,
@@ -825,7 +825,7 @@ def process_job_task(
                 if isinstance(phase1_result, dict) and phase1_result.get("status") == "quota_exceeded":
                     await db.commit()
                     return phase1_result
-                job, our_estimated_cost, our_reserved, redis_lock, redis_job_lock_key = phase1_result
+                _job, our_estimated_cost, our_reserved, redis_lock, redis_job_lock_key = phase1_result
 
             output, execution_ms = await _phase2_ai_gateway()
             if output is None:

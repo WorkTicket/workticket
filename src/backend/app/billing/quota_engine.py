@@ -22,7 +22,7 @@ class QuotaResult:
     reserved_acu: float = 0.0
 
 
-class _ConcurrencyRetry(Exception):
+class _ConcurrencyRetryError(Exception):
     pass
 
 
@@ -155,8 +155,8 @@ class AIQuotaEngine:
                     result = await db.execute(stmt)
 
                     if result.rowcount == 0:
-                        raise _ConcurrencyRetry()
-            except _ConcurrencyRetry:
+                        raise _ConcurrencyRetryError()
+            except _ConcurrencyRetryError:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(0.05 * (2**attempt))
                     continue

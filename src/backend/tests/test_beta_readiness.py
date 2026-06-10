@@ -73,9 +73,9 @@ async def test_request_id_propagated(client: AsyncClient):
 async def test_stale_job_cleanup_task_exists(client: AsyncClient):
     from celery_app import celery_app
 
-    task = celery_app.tasks.get("cleanup_stale_jobs")
+    task = celery_app.tasks.get("tasks.maintenance.cleanup_stale_jobs")
     assert task is not None, "cleanup_stale_jobs task must be registered"
-    assert task.name == "cleanup_stale_jobs"
+    assert task.name == "tasks.maintenance.cleanup_stale_jobs"
 
 
 @pytest.mark.asyncio
@@ -101,7 +101,7 @@ async def test_user_daily_usage_table_imports():
 
 @pytest.mark.asyncio
 async def test_billing_admin_refund_endpoint_accessible(client: AsyncClient):
-    resp = await client.post(f"/billing/admin/refund?job_id={uuid.uuid4()}&amount_acu=10&reason=test_refund")
+    resp = await client.post(f"/api/v1/billing/admin/refund?job_id={uuid.uuid4()}&amount_acu=10&reason=test_refund")
     assert resp.status_code in (200, 403, 401, 404), f"Expected accessible endpoint, got {resp.status_code}"
 
 
@@ -112,19 +112,19 @@ async def test_beat_schedule_configured():
     assert celery_app.conf.beat_schedule is not None
     assert "cleanup-stale-jobs-every-2-min" in celery_app.conf.beat_schedule
     task_config = celery_app.conf.beat_schedule["cleanup-stale-jobs-every-2-min"]
-    assert task_config["task"] == "cleanup_stale_jobs"
+    assert "cleanup_stale_jobs" in task_config["task"]
     assert task_config["schedule"] == 120.0
-    assert "daily-db-backup-at-3am" in celery_app.conf.beat_schedule
-    backup_config = celery_app.conf.beat_schedule["daily-db-backup-at-3am"]
-    assert backup_config["task"] == "daily_db_backup", "Automated backup task must be registered"
+    assert "reset-billing-quotas-every-5-min" in celery_app.conf.beat_schedule
+    backup_config = celery_app.conf.beat_schedule["reset-billing-quotas-every-5-min"]
+    assert "reset_billing_quotas" in backup_config["task"], "Billing quota reset task must be registered"
 
 
 @pytest.mark.asyncio
 async def test_empty_payload_job(client: AsyncClient):
-    customer_resp = await client.post("/jobs/customers", json={"name": "Empty Payload"})
+    customer_resp = await client.post("/api/v1/jobs/customers", json={"name": "Empty Payload"})
     customer_id = customer_resp.json()["id"]
     resp = await client.post(
-        "/jobs",
+        "/api/v1/jobs",
         json={
             "customer_id": customer_id,
             "description": "",
@@ -200,7 +200,7 @@ async def test_job_lifecycle(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_cost_estimate_endpoint(client: AsyncClient):
-    resp = await client.post("/billing/estimate-cost?image_count=2&has_audio=true")
+    resp = await client.post("/api/v1/billing/estimate-cost?image_count=2&has_audio=true")
     assert resp.status_code in (200, 401)
     if resp.status_code == 200:
         data = resp.json()
@@ -210,7 +210,7 @@ async def test_cost_estimate_endpoint(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_quota_summary_endpoint(client: AsyncClient):
-    resp = await client.get("/billing/quota")
+    resp = await client.get("/api/v1/billing/quota")
     assert resp.status_code in (200, 401)
     if resp.status_code == 200:
         data = resp.json()
@@ -220,7 +220,7 @@ async def test_quota_summary_endpoint(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_usage_history_endpoint(client: AsyncClient):
-    resp = await client.get("/billing/usage")
+    resp = await client.get("/api/v1/billing/usage")
     assert resp.status_code in (200, 401)
     if resp.status_code == 200:
         data = resp.json()

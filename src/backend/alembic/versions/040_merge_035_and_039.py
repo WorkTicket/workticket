@@ -7,8 +7,6 @@ Create Date: 2026-06-09 21:45:00.000000
 
 from collections.abc import Sequence
 
-from alembic import op
-
 revision: str = "040"
 down_revision: str | Sequence[str] | None = ("035", "039")
 branch_labels: str | Sequence[str] | None = None

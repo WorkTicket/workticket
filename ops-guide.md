@@ -3,8 +3,9 @@
 ## 1. Staging Environment Setup
 
 ### Infrastructure
+Use the base `docker-compose.yml` with a `.env.staging` file for staging-specific environment variables. Below is the staging service configuration for reference:
 ```yaml
-# docker-compose.staging.yml — extend base compose with staging overrides
+# docker-compose.yml (staging overrides via .env.staging)
 services:
   traefik:
     ports:
@@ -52,7 +53,7 @@ volumes:
 
 ### CI/CD — Deploy to Staging on PR Merge to `main`
 ```yaml
-# .github/workflows/deploy-staging.yml
+# .github/workflows/deploy.yml
 on:
   push:
     branches: [main]
@@ -64,8 +65,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and deploy
         run: |
-          docker compose -f docker-compose.staging.yml build
-          docker compose -f docker-compose.staging.yml up -d
+          docker compose -f docker-compose.yml --env-file .env.staging build
+          docker compose -f docker-compose.yml --env-file .env.staging up -d
       - name: Run smoke tests
         run: |
           curl -f https://staging.example.com/health
@@ -88,7 +89,7 @@ jobs:
 2. Install Docker + Docker Compose plugin
 3. Clone repo, checkout `main`
 4. Create `.env.staging` from template with real secrets
-5. Start stack: `docker compose -f docker-compose.staging.yml up -d`
+5. Start stack: `docker compose -f docker-compose.yml --env-file .env.staging up -d`
 6. Run migrations: `docker compose exec backend alembic upgrade head`
 7. Verify health: `curl https://staging.example.com/health`
 
@@ -253,7 +254,27 @@ Env var `CELERY_WORKER_PREFETCH_MULTIPLIER` — controls how many tasks a worker
 3. **Rule of thumb**:
    - If tasks are CPU-heavy (AI inference): `prefetch_multiplier = 1`
    - If tasks are IO-heavy (file uploads, notifications): `prefetch_multiplier = 4`
-   - If tasks are mixed: start at `2`, increase until CPU > 70% or latency rises
+    - If tasks are mixed: start at `2`, increase until CPU > 70% or latency rises
+
+### Testing in Staging
+```bash
+# Test different values in staging
+for val in 1 2 4 6 8; do
+  CELERY_WORKER_PREFETCH_MULTIPLIER=$val celery -A app.celery_app worker --loglevel=info &
+  # ... run load test ...
+  # Record avg task latency & throughput
+  kill %1
+done
+```
+
+### Per-Deployment Config Files
+```yaml
+# docker-compose.override.yml
+services:
+  celery_worker:
+    environment:
+      CELERY_WORKER_PREFETCH_MULTIPLIER: "2"  # staging
+```
 
 ---
 
@@ -378,28 +399,6 @@ SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'ai_outputs';
 ```bash
 docker compose exec backend alembic downgrade -1
 # This drops the index (revision 018 is the parent)
-```
-
----
-
-## 9. Worker Prefetch Tuning Per Deployment
-```bash
-# Test different values in staging
-for val in 1 2 4 6 8; do
-  CELERY_WORKER_PREFETCH_MULTIPLIER=$val celery -A app.celery_app worker --loglevel=info &
-  # ... run load test ...
-  # Record avg task latency & throughput
-  kill %1
-done
-```
-
-### Per-Deployment Config Files
-```yaml
-# docker-compose.override.yml
-services:
-  celery_worker:
-    environment:
-      CELERY_WORKER_PREFETCH_MULTIPLIER: "2"  # staging
 ```
 
 ---
@@ -621,7 +620,7 @@ python ops/synthetic_monitor.py
 
 ---
 
-## 13. Rollback Drill — Audit Fixes
+## 14. Rollback Drill — Audit Fixes
 
 See `ops/rollback-drill.md` for the complete rollback procedure for the production readiness audit (fixes C1-C5, H1-H7, M1-M7).
 
@@ -637,7 +636,7 @@ See `ops/rollback-drill.md` for the complete rollback procedure for the producti
 
 ---
 
-## 14. Disaster Recovery Objectives
+## 15. Disaster Recovery Objectives
 
 ### Recovery Time Objective (RTO)
 | Tier | Target | Details |
@@ -669,7 +668,7 @@ See `ops/rollback-drill.md` for the complete rollback procedure for the producti
 
 ---
 
-## 15. On-Call Procedures
+## 16. On-Call Procedures
 
 ### Escalation Path
 | Level | Responder | Response Time | Coverage |
@@ -703,7 +702,7 @@ Alert fires → L1 acknowledges (5 min) → Triage severity →
 
 ---
 
-## 16. Data Retention Policy
+## 17. Data Retention Policy
 
 | Data Category | Retention | Deletion Action | Configurable |
 |---------------|-----------|-----------------|--------------|
@@ -718,7 +717,7 @@ Policies are enforced at startup via `app/db/retention.py` cleanup tasks. Overri
 
 ---
 
-## 17. Clerk Outage Contingency Plan
+## 18. Clerk Outage Contingency Plan
 
 ### Impact
 When Clerk (external auth provider) is unavailable:
@@ -739,7 +738,7 @@ When Clerk (external auth provider) is unavailable:
 
 ---
 
-## 18. Webhook Unavailability During Scheduled Maintenance
+## 19. Webhook Unavailability During Scheduled Maintenance
 
 ### Stripe Webhooks
 Stripe retries failed webhook delivery for up to 3 days with exponential backoff:

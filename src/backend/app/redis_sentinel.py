@@ -16,7 +16,7 @@ def parse_sentinel_url(url: str) -> tuple[str | None, str | None, str | None]:
     if not url:
         return None, None, None
 
-    scheme_detected = url.startswith("sentinel://") or url.startswith("redis+sentinel://")
+    scheme_detected = url.startswith(("sentinel://", "redis+sentinel://"))
     if not scheme_detected:
         return None, None, None
 

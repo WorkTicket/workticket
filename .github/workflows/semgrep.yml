@@ -1,0 +1,58 @@
+name: Semgrep SAST
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 8 * * 1'  # Weekly Monday 08:00 UTC
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semgrep — Python
+        run: |
+          semgrep scan \
+            --config=auto \
+            --config=p/python \
+            --config=p/secrets \
+            --config=p/sql-injection \
+            --config=p/xss \
+            --config=p/security-audit \
+            --include="*.py" \
+            --metrics=off \
+            --sarif=semgrep-python.sarif \
+            --error=false \
+            src/backend/app src/whisper-service chaos
+
+      - name: Semgrep — TypeScript
+        run: |
+          semgrep scan \
+            --config=p/typescript \
+            --config=p/javascript \
+            --config=p/secrets \
+            --config=p/xss \
+            --include="*.ts,*.tsx" \
+            --metrics=off \
+            --sarif=semgrep-typescript.sarif \
+            --error=false \
+            src/web-dashboard src/mobile-app
+
+      - name: Upload Python SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-python.sarif
+          category: semgrep-python
+
+      - name: Upload TypeScript SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep-typescript.sarif
+          category: semgrep-typescript

@@ -43,15 +43,24 @@ services:
       - backend-redis
     volumes:
       - redis-broker-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     command: >
       redis-server --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
       --masterauth "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
       --maxmemory-policy noeviction
-      --maxmemory 1073741824
+      --maxmemory 209715200
       --appendonly yes
 
   redis-broker-replica-1:
     image: redis:7-alpine
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     mem_limit: 256m
     mem_reservation: 128m
     networks:
@@ -61,13 +70,22 @@ services:
       --masterauth "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
       --replicaof redis-broker-ha 6379
       --maxmemory-policy noeviction
-      --maxmemory 1073741824
+      --maxmemory 209715200
       --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       - redis-broker-ha
 
   redis-broker-replica-2:
     image: redis:7-alpine
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     mem_limit: 256m
     mem_reservation: 128m
     networks:
@@ -77,20 +95,34 @@ services:
       --masterauth "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
       --replicaof redis-broker-ha 6379
       --maxmemory-policy noeviction
-      --maxmemory 1073741824
+      --maxmemory 209715200
       --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       - redis-broker-ha
 
   # --- Redis Cache Cluster ---
   redis-cache-ha:
     image: redis:7-alpine
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     mem_limit: 256m
     mem_reservation: 128m
     networks:
       - backend-redis
     volumes:
       - redis-cache-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     command: >
       redis-server --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
       --masterauth "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
@@ -100,6 +132,10 @@ services:
 
   redis-cache-replica-1:
     image: redis:7-alpine
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     mem_limit: 256m
     mem_reservation: 128m
     networks:
@@ -111,11 +147,20 @@ services:
       --maxmemory-policy allkeys-lru
       --maxmemory 209715200
       --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       - redis-cache-ha
 
   redis-cache-replica-2:
     image: redis:7-alpine
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     mem_limit: 256m
     mem_reservation: 128m
     networks:
@@ -127,6 +172,11 @@ services:
       --maxmemory-policy allkeys-lru
       --maxmemory 209715200
       --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       - redis-cache-ha
 
@@ -143,6 +193,11 @@ services:
       - backend-redis
     ports:
       - "127.0.0.1:26379:26379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     command: >
       sh -c "
       echo 'sentinel monitor redis-broker redis-broker-ha 6379 2' > /etc/sentinel.conf &&
@@ -160,10 +215,19 @@ services:
 
   sentinel-2:
     image: redis:7-alpine
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     mem_limit: 64m
     mem_reservation: 32m
     networks:
       - backend-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     command: >
       sh -c "
       echo 'sentinel monitor redis-broker redis-broker-ha 6379 2' > /etc/sentinel.conf &&
@@ -181,10 +245,19 @@ services:
 
   sentinel-3:
     image: redis:7-alpine
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     mem_limit: 64m
     mem_reservation: 32m
     networks:
       - backend-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     command: >
       sh -c "
       echo 'sentinel monitor redis-broker redis-broker-ha 6379 2' > /etc/sentinel.conf &&

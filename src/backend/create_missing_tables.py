@@ -1,5 +1,6 @@
 """Create tables that exist in models but are missing from migrations."""
 import os
+
 from sqlalchemy import create_engine, text
 
 engine = create_engine(os.environ["DATABASE_URL"].replace("+asyncpg", ""))
@@ -27,4 +28,4 @@ with engine.connect() as conn:
         )
     """))
     conn.commit()
-    print("Created missing tables: stripe_webhook_events, invoices")
+    print("Created missing tables: stripe_webhook_events, invoices")  # noqa: T201

@@ -1,0 +1,89 @@
+name: Load Test (k6)
+on:
+  schedule:
+    - cron: '0 4 * * 6'  # Weekly Saturday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL for load test'
+        required: false
+        default: 'https://staging.workticket.app'
+      vus:
+        description: 'Number of virtual users'
+        required: false
+        default: '50'
+      duration:
+        description: 'Test duration (e.g. 30s, 1m, 5m)'
+        required: false
+        default: '1m'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  k6-load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run k6 load test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: |
+            import http from 'k6/http';
+            import { check, sleep, group } from 'k6';
+            import { Trend, Rate, Counter } from 'k6/metrics';
+
+            const latency = new Trend('api_latency');
+            const errorRate = new Rate('errors');
+            const requests = new Counter('requests');
+
+            export const options = {
+              vus: __ENV.VUS || 50,
+              duration: __ENV.DURATION || '1m',
+              thresholds: {
+                http_req_duration: ['p(95)<1000'],
+                http_req_failed: ['rate<0.05'],
+                errors: ['rate<0.02'],
+              },
+              summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
+            };
+
+            const BASE = __ENV.TARGET_URL || 'https://staging.workticket.app';
+
+            export default function() {
+              group('health', () => {
+                let r = http.get(BASE + '/health');
+                latency.add(r.timings.duration);
+                errorRate.add(r.status !== 200);
+                requests.add(1);
+                check(r, {'health 200': (r) => r.status === 200});
+              });
+
+              group('readyz', () => {
+                let r = http.get(BASE + '/readyz');
+                latency.add(r.timings.duration);
+                errorRate.add(r.status !== 200);
+                requests.add(1);
+                check(r, {'readyz 200': (r) => r.status === 200});
+              });
+
+              group('list_jobs', () => {
+                let r = http.get(BASE + '/jobs/list');
+                latency.add(r.timings.duration);
+                errorRate.add(r.status !== 200 && r.status !== 401);
+                requests.add(1);
+                check(r, {'list acceptable': (r) => [200,401,404].includes(r.status)});
+              });
+
+              sleep(1);
+            }
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results
+          path: k6-summary.json
+          retention-days: 90

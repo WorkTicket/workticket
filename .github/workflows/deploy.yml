@@ -86,7 +86,7 @@ jobs:
           sarif_file: trivy-results.sarif
 
   sign:
-    needs: scan
+    needs: [scan, build]
     runs-on: ubuntu-latest
     steps:
       - uses: sigstore/cosign-installer@v3.6.0
@@ -95,6 +95,12 @@ jobs:
           COSIGN_EXPERIMENTAL: "1"
         run: |
           cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}"
+      - name: Generate backend SPDX SBOM
+        uses: anchore/sbom-action@v0.17.0
+        with:
+          path: ./src/backend
+          format: spdx-json
+          output-file: src/backend/sbom.spdx
       - name: Attach SBOM
         env:
           COSIGN_EXPERIMENTAL: "1"
@@ -102,7 +108,7 @@ jobs:
           cosign attach sbom --sbom src/backend/sbom.spdx "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}"
 
   deploy-staging:
-    needs: sign
+    needs: [sign, build]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: staging
@@ -121,7 +127,7 @@ jobs:
           git push
 
   deploy-prod:
-    needs: [sign, deploy-staging]
+    needs: [sign, deploy-staging, build]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production

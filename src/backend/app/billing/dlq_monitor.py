@@ -38,23 +38,22 @@ async def get_dlq_entries(
     if company_id:
         query = query.where(DeadLetterJob.company_id == company_id)
     result = await db.execute(query)
-    entries = []
-    for entry in result.scalars().all():
-        entries.append(
-            {
-                "id": str(entry.id),
-                "job_id": str(entry.job_id),
-                "company_id": str(entry.company_id),
-                "user_id": entry.user_id,
-                "task_name": entry.task_name,
-                "failure_category": entry.failure_category,
-                "last_state": entry.last_state,
-                "retry_count": entry.retry_count,
-                "trace_id": entry.trace_id,
-                "created_at": entry.created_at.isoformat() if entry.created_at else None,
-                "expires_at": entry.expires_at.isoformat() if entry.expires_at else None,
-            }
-        )
+    entries = [
+        {
+            "id": str(entry.id),
+            "job_id": str(entry.job_id),
+            "company_id": str(entry.company_id),
+            "user_id": entry.user_id,
+            "task_name": entry.task_name,
+            "failure_category": entry.failure_category,
+            "last_state": entry.last_state,
+            "retry_count": entry.retry_count,
+            "trace_id": entry.trace_id,
+            "created_at": entry.created_at.isoformat() if entry.created_at else None,
+            "expires_at": entry.expires_at.isoformat() if entry.expires_at else None,
+        }
+        for entry in result.scalars().all()
+    ]
     return entries
 
 

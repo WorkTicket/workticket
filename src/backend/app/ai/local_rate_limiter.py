@@ -50,22 +50,22 @@ class LocalRateLimiter:
         self._buckets[key] = (bucket, now)
         return bucket
 
-    def check_user(self, user_id: str, rate: float = None, burst: int = None) -> bool:
+    def check_user(self, user_id: str, rate: float | None = None, burst: int | None = None) -> bool:
         r = rate if rate is not None else self.user_rate
         b = burst if burst is not None else self.user_burst
         return self._get_bucket(f"user:{user_id}", r, b).consume()
 
-    def check_tenant(self, company_id: str, rate: float = None, burst: int = None) -> bool:
+    def check_tenant(self, company_id: str, rate: float | None = None, burst: int | None = None) -> bool:
         r = rate if rate is not None else self.tenant_rate
         b = burst if burst is not None else self.tenant_burst
         return self._get_bucket(f"tenant:{company_id}", r, b).consume()
 
-    def check_global(self, rate: float = None, burst: int = None) -> bool:
+    def check_global(self, rate: float | None = None, burst: int | None = None) -> bool:
         r = rate if rate is not None else self.global_rate
         b = burst if burst is not None else self.global_burst
         return self._get_bucket("global", r, b).consume()
 
-    def check_ip(self, client_ip: str, rate: float = None, burst: int = None) -> bool:
+    def check_ip(self, client_ip: str, rate: float | None = None, burst: int | None = None) -> bool:
         r = rate if rate is not None else 10.0
         b = burst if burst is not None else 20
         return self._get_bucket(f"ip:{client_ip}", r, b).consume()

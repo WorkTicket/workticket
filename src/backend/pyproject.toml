@@ -37,6 +37,10 @@ dependencies = [
     "opentelemetry-instrumentation-redis==0.48b0",
     "opentelemetry-instrumentation-httpx==0.48b0",
     "cachetools==5.5.0",
+    "psycopg2-binary==2.9.10",
+    "prometheus-client==0.21.0",
+    "prometheus-fastapi-instrumentator==7.0.1",
+    "posthog==7.18.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +49,7 @@ test = [
     "pytest-asyncio>=0.24",
     "httpx>=0.28",
     "pytest-cov>=5.0",
+    "pytest-mock>=3.15",
 ]
 
 [tool.ruff]

@@ -1,0 +1,91 @@
+name: Scheduled Database Backup
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install AWS CLI for encrypted S3/R2 upload
+        run: |
+          pip install awscli
+
+      - name: Perform pg_dump
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_AWS_REGION }}
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%d_%H%M%S)
+          BACKUP_FILE="workticket_backup_${TIMESTAMP}.sql.gz"
+          echo "Starting backup at $TIMESTAMP"
+
+          PGPASSWORD="${DATABASE_URL#*://*:}" 
+          pg_dump --format=custom --compress=9 -f "${BACKUP_FILE}" "${DATABASE_URL}"
+
+          BACKUP_SIZE=$(stat -c%s "${BACKUP_FILE}")
+          echo "Backup size: ${BACKUP_SIZE} bytes"
+
+          # Encrypt with AES-256 using OpenSSL
+          ENCRYPTED_FILE="${BACKUP_FILE}.enc"
+          openssl enc -aes-256-cbc -salt -pbkdf2 -in "${BACKUP_FILE}" -out "${ENCRYPTED_FILE}" -k "${BACKUP_ENCRYPTION_KEY}"
+
+          # Upload to S3/R2 with server-side encryption
+          aws s3 cp "${ENCRYPTED_FILE}" "s3://${S3_BUCKET}/backups/daily/${ENCRYPTED_FILE}" --sse AES256
+
+          echo "Backup completed and uploaded: s3://${S3_BUCKET}/backups/daily/${ENCRYPTED_FILE}"
+
+  verify:
+    needs: backup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify backup in S3
+        env:
+          S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_AWS_REGION }}
+        run: |
+          pip install awscli
+          LATEST=$(aws s3 ls "s3://${S3_BUCKET}/backups/daily/" --recursive | sort -k1,2 | tail -1)
+          echo "Latest backup: ${LATEST}"
+          if [ -z "$LATEST" ]; then
+            echo "ERROR: No backups found in S3"
+            exit 1
+          fi
+          echo "Backup verification passed"
+
+  retention:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply retention policy (keep 30 daily, 12 monthly)
+        env:
+          S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_AWS_REGION }}
+        run: |
+          pip install awscli
+          # Delete backups older than 30 days
+          aws s3 ls "s3://${S3_BUCKET}/backups/daily/" --recursive | \
+            awk -v cutoff="$(date -d '30 days ago' -u +%Y-%m-%d)" '$1 < cutoff {print $4}' | \
+            while read -r key; do
+              echo "Deleting expired backup: ${key}"
+              aws s3 rm "s3://${S3_BUCKET}/${key}"
+            done
+          echo "Retention policy applied"

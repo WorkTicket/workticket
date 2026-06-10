@@ -24,8 +24,9 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
-    mem_limit: 128m
-    mem_reservation: 64m
+    mem_limit: 256m
+    mem_reservation: 128m
+    cpus: 1
     ports:
       - "80:80"
       - "443:443"
@@ -34,12 +35,15 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    volumes:
+      - ./nginx/ssl/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
 
   postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
-    mem_limit: 1g
-    mem_reservation: 512m
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpus: 2
     ports:
       - "127.0.0.1:5432:5432"
     networks:
@@ -61,8 +65,9 @@ services:
   redis-broker:
     image: redis:7-alpine
     restart: unless-stopped
-    mem_limit: 256m
-    mem_reservation: 128m
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: 1
     ports:
       - "127.0.0.1:6379:6379"
     networks:
@@ -81,8 +86,9 @@ services:
   redis-cache:
     image: redis:7-alpine
     restart: unless-stopped
-    mem_limit: 256m
-    mem_reservation: 128m
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: 1
     ports:
       - "127.0.0.1:6380:6379"
     networks:
@@ -101,8 +107,9 @@ services:
   clamav:
     image: clamav/clamav:1.4
     restart: unless-stopped
-    mem_limit: 512m
-    mem_reservation: 256m
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpus: 1
     networks:
       - backend-redis
       - frontend
@@ -122,8 +129,9 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
-    mem_limit: 1g
-    mem_reservation: 512m
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpus: 2
     read_only: true
     tmpfs:
       - /tmp
@@ -172,8 +180,9 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
-    mem_limit: 1g
-    mem_reservation: 512m
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpus: 2
     read_only: true
     tmpfs:
       - /tmp
@@ -216,6 +225,7 @@ services:
     restart: unless-stopped
     mem_limit: 1g
     mem_reservation: 512m
+    cpus: 1
     read_only: true
     tmpfs:
       - /tmp
@@ -256,8 +266,9 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
-    mem_limit: 1g
-    mem_reservation: 512m
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: 0.5
     read_only: true
     tmpfs:
       - /tmp

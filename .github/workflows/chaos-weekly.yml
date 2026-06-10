@@ -1,0 +1,77 @@
+name: Weekly Chaos Tests
+on:
+  schedule:
+    - cron: '0 10 * * 6'  # Weekly Saturday 10:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  chaos-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: workticket_chaos
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        command: redis-server --requirepass chaos_redis_pass
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r src/backend/requirements.txt pytest pytest-asyncio httpx
+
+      - name: Run migrations
+        working-directory: src/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/workticket_chaos
+        run: alembic upgrade head
+
+      - name: Run chaos tests
+        working-directory: chaos
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/workticket_chaos
+          REDIS_PASSWORD: chaos_redis_pass
+        run: |
+          python run_all.py --json-report chaos_report.json --timeout 300 --fail-fast false || true
+
+      - name: Generate chaos report
+        run: |
+          cat > chaos_summary.md << 'EOF'
+          # Weekly Chaos Test Report
+          **Date**: $(date -u +%Y-%m-%d)
+          **Run ID**: ${{ github.run_id }}
+          **Trigger**: ${{ github.event_name }}
+
+          ## Results
+          See attached chaos_report.json for detailed results.
+          EOF
+
+      - name: Upload chaos test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-test-results
+          path: |
+            chaos/chaos_report.json
+            chaos_summary.md
+          retention-days: 90

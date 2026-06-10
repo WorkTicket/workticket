@@ -467,7 +467,7 @@ def _report_cooldown_gauge() -> None:
 
 
 def _check_db_circuit() -> None:
-    """Raise DBUnavailable if the DB circuit breaker is open.
+    """Raise DBUnavailableError if the DB circuit breaker is open.
 
     H1-FIX: Uses Redis-coordinated circuit breaker state to ensure all
     replicas share the same circuit state and exactly 1 half-open probe
@@ -613,14 +613,13 @@ def _record_db_error() -> None:
         _record_pool_exhaustion()
 
 
-class DBUnavailable(Exception):
+class DBUnavailableError(Exception):
     """Raised when the database is unavailable (pool exhausted or connection failed)."""
 
-    pass
 
 
-def _db_unavailable(detail: str) -> DBUnavailable:
-    return DBUnavailable(detail)
+def _db_unavailable(detail: str) -> DBUnavailableError:
+    return DBUnavailableError(detail)
 
 
 _readonly_engine = None
@@ -738,7 +737,6 @@ async def check_read_replica_lag() -> float:
         set_read_replica_lag(_read_replica_lag_seconds)
     except Exception as e:
         logger.debug("Failed to report read replica lag metric: %s", e)
-        pass
 
 
 async def get_read_replica_safe_session() -> AsyncSession:
@@ -851,7 +849,7 @@ def is_retryable_error(exc: Exception) -> bool:
 async def run_celery_tx_with_retry(
     coro_factory,
     max_retries: int = 3,
-    retry_backoff: list = None,
+    retry_backoff: list | None = None,
 ):
     """Run a Celery DB operation with automatic retry on serialization failures.
 
@@ -922,7 +920,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             # Pool timeout (SQLAlchemy TimeoutError) — open circuit breaker, fail fast
             if "timeout" in exc_str.lower() and "pool" in exc_str.lower():
                 _record_pool_exhaustion()
-                raise DBUnavailable("Database connection pool exhausted") from exc
+                raise DBUnavailableError("Database connection pool exhausted") from exc
             if is_retryable_error(exc):
                 _record_db_error()
                 if attempt < MAX_RETRIES:
@@ -938,10 +936,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
                 await clear_rls_tenant_context(session)
             except Exception as e:
                 logger.debug("Failed to clear RLS context in get_db: %s", e)
-                pass
             await session.close()
     if last_exc:
-        raise DBUnavailable("DB operation failed after retries") from last_exc
+        raise DBUnavailableError("DB operation failed after retries") from last_exc
 
 
 async def get_db_with_refresh() -> AsyncGenerator[AsyncSession, None]:
@@ -976,7 +973,7 @@ async def get_db_with_refresh() -> AsyncGenerator[AsyncSession, None]:
             exc_str = str(exc)
             if "timeout" in exc_str.lower() and "pool" in exc_str.lower():
                 _record_pool_exhaustion()
-                raise DBUnavailable("Database connection pool exhausted") from exc
+                raise DBUnavailableError("Database connection pool exhausted") from exc
             if attempt < MAX_RETRIES and is_retryable_error(exc):
                 last_exc = exc
                 await asyncio.sleep(RETRY_BACKOFF[attempt])
@@ -989,10 +986,9 @@ async def get_db_with_refresh() -> AsyncGenerator[AsyncSession, None]:
                 await clear_rls_tenant_context(session)
             except Exception as e:
                 logger.debug("Failed to clear RLS context in get_db_with_refresh: %s", e)
-                pass
             await session.close()
     if last_exc:
-        raise DBUnavailable("DB operation failed after retries") from last_exc
+        raise DBUnavailableError("DB operation failed after retries") from last_exc
 
 
 async def get_db_readonly() -> AsyncGenerator[AsyncSession, None]:
@@ -1026,7 +1022,7 @@ async def get_db_readonly() -> AsyncGenerator[AsyncSession, None]:
             exc_str = str(exc)
             if "timeout" in exc_str.lower() and "pool" in exc_str.lower():
                 _record_pool_exhaustion()
-                raise DBUnavailable("Database connection pool exhausted") from exc
+                raise DBUnavailableError("Database connection pool exhausted") from exc
             if attempt < MAX_RETRIES and is_retryable_error(exc):
                 last_exc = exc
                 await asyncio.sleep(RETRY_BACKOFF[attempt])
@@ -1039,10 +1035,9 @@ async def get_db_readonly() -> AsyncGenerator[AsyncSession, None]:
                 await clear_rls_tenant_context(session)
             except Exception as e:
                 logger.debug("Failed to clear RLS context in get_db_readonly: %s", e)
-                pass
             await session.close()
     if last_exc:
-        raise DBUnavailable("DB read-only operation failed after retries") from last_exc
+        raise DBUnavailableError("DB read-only operation failed after retries") from last_exc
 
 
 async def _validate_tenant_scoped_tables(engine) -> int:

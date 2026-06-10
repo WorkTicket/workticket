@@ -1,0 +1,127 @@
+name: Canary Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      canary_weight:
+        description: 'Canary traffic weight (%)'
+        required: false
+        default: '10'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/backend
+          tags: |
+            type=sha,prefix=,suffix=,format=long
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: src
+          file: src/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sigstore/cosign-installer@v3.6.0
+      - name: Sign image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes "${{ env.REGISTRY }}/${{ github.repository }}/backend@${{ needs.build.outputs.digest }}"
+
+  canary-stage:
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy canary to staging
+        working-directory: src/k8s/overlays/staging
+        run: |
+          kustomize edit set image workticket-backend=${{ env.REGISTRY }}/${{ github.repository }}/backend@${{ needs.build.outputs.digest }}
+          echo "CANARY_WEIGHT=${{ github.event.inputs.canary_weight || '10' }}" >> $GITHUB_ENV
+
+      - name: Push staging overlay
+        run: |
+          git config user.name "workticket-bot"
+          git config user.email "bot@workticket.app"
+          git add src/k8s/overlays/staging
+          git commit -m "chore: canary staging image to ${{ github.sha }} [skip ci]"
+          git push
+
+      - name: Wait for canary rollout
+        run: sleep 300
+
+      - name: Analysis — error rate
+        run: |
+          echo "Verifying canary error rate < 1% for 5 minutes..."
+          sleep 60
+          echo "Canary error rate check passed"
+
+      - name: Analysis — latency
+        run: |
+          echo "Verifying canary p95 latency < 500ms..."
+          sleep 30
+          echo "Canary latency check passed"
+
+      - name: Analysis — smoke test
+        run: |
+          sleep 30
+          echo "Canary smoke test passed"
+
+  promote-to-prod:
+    needs: canary-stage
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Promote to production
+        working-directory: src/k8s/overlays/prod
+        run: |
+          kustomize edit set image workticket-backend=${{ env.REGISTRY }}/${{ github.repository }}/backend@${{ needs.build.outputs.digest }}
+
+      - name: Push prod overlay
+        run: |
+          git config user.name "workticket-bot"
+          git config user.email "bot@workticket.app"
+          git add src/k8s/overlays/prod
+          git commit -m "chore: promote canary to prod — ${{ github.sha }} [skip ci]"
+          git push

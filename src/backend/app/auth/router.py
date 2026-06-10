@@ -82,7 +82,7 @@ async def register(
             )
 
         email_domain = payload.email.split("@")[-1].lower() if "@" in payload.email else "unknown"
-        _DISPOSABLE_DOMAINS = {
+        _disposable_domains = {
             "mailinator.com",
             "guerrillamail.com",
             "tempmail.com",
@@ -104,7 +104,7 @@ async def register(
             "mytrashmail.com",
             "mailexpire.com",
         }
-        if email_domain in _DISPOSABLE_DOMAINS:
+        if email_domain in _disposable_domains:
             logger.warning("Disposable email domain blocked: %s", email_domain)
             raise HTTPException(
                 status_code=400, detail="Disposable email addresses are not allowed. Use a permanent email address."

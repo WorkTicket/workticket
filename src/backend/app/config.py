@@ -165,6 +165,7 @@ class Settings(BaseSettings):
                 "twilio_from_number",
                 "resend_api_key",
                 "celery_task_signing_key",
+                "push_token_encryption_key",
                 "allowed_hosts",
                 "app_base_url",
                 "cors_origins",
@@ -296,7 +297,7 @@ class FeatureFlags:
             logger.debug("FeatureFlags: Redis unavailable: %s", e)
             return None
 
-    def is_enabled(self, flag: str, company_id: str = None) -> bool:
+    def is_enabled(self, flag: str, company_id: str | None = None) -> bool:
         # Check company-specific override first
         if company_id:
             try:
@@ -307,7 +308,6 @@ class FeatureFlags:
                         return company_val == b"1"
             except Exception as e:
                 logger.debug("FeatureFlags: company override check failed: %s", e)
-                pass
         try:
             r = self._get_redis()
             if r:
@@ -316,10 +316,9 @@ class FeatureFlags:
                     return val == b"1"
         except Exception as e:
             logger.debug("FeatureFlags: global flag check failed: %s", e)
-            pass
         return self._flags.get(flag, False)
 
-    def enable(self, flag: str, company_id: str = None):
+    def enable(self, flag: str, company_id: str | None = None):
         key = f"{self._redis_prefix}company:{company_id}:{flag}" if company_id else f"{self._redis_prefix}global:{flag}"
         self._flags[flag] = True
         try:
@@ -328,9 +327,8 @@ class FeatureFlags:
                 r.setex(key, 86400 * 30, "1")
         except Exception as e:
             logger.debug("FeatureFlags: enable (setex) failed: %s", e)
-            pass
 
-    def disable(self, flag: str, company_id: str = None):
+    def disable(self, flag: str, company_id: str | None = None):
         key = f"{self._redis_prefix}company:{company_id}:{flag}" if company_id else f"{self._redis_prefix}global:{flag}"
         self._flags[flag] = False
         try:
@@ -339,9 +337,8 @@ class FeatureFlags:
                 r.setex(key, 86400 * 30, "0")
         except Exception as e:
             logger.debug("FeatureFlags: disable (setex) failed: %s", e)
-            pass
 
-    def set(self, flag: str, value: bool, company_id: str = None):
+    def set(self, flag: str, value: bool, company_id: str | None = None):
         if value:
             self.enable(flag, company_id=company_id)
         else:

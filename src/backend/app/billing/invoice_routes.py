@@ -714,14 +714,14 @@ async def export_invoice(
             "updated_at": invoice.updated_at.isoformat() if invoice.updated_at else None,
         }
     elif format == "csv":
-        _CSV_CONTROL_CHARS = str.maketrans(
+        _csv_control_chars = str.maketrans(
             "".join(chr(c) for c in range(0x20) if chr(c) not in ("\t", "\n", "\r")), " " * 29
         )
 
         def _sanitize_csv(val: str) -> str:
             if not val:
                 return val
-            val = val.replace('"', '""').translate(_CSV_CONTROL_CHARS)
+            val = val.replace('"', '""').translate(_csv_control_chars)
             if re.match(r"^[\s]*[=+\-@\t\n\r|%&{}]", val):
                 val = "'" + val
             _dangerous_patterns = [
@@ -786,7 +786,7 @@ async def export_invoice(
             },
         )
     elif format == "pdf":
-        _MAX_PDF_LINE_ITEMS = settings.max_pdf_line_items
+        _max_pdf_line_items = settings.max_pdf_line_items
         try:
             import io as pdf_io
 
@@ -816,10 +816,10 @@ async def export_invoice(
             if invoice.line_items:
                 items = invoice.line_items if isinstance(invoice.line_items, dict) else {}
                 _item_count = len(items)
-                if _item_count > _MAX_PDF_LINE_ITEMS:
+                if _item_count > _max_pdf_line_items:
                     raise HTTPException(
                         status_code=413,
-                        detail=f"Invoice has too many line items ({_item_count}) for PDF export (max {_MAX_PDF_LINE_ITEMS})",
+                        detail=f"Invoice has too many line items ({_item_count}) for PDF export (max {_max_pdf_line_items})",
                     )
                 data = [["Item", "Amount"]]
                 for k, v in items.items():

@@ -14,7 +14,7 @@ _PII_PATTERNS = [
     (
         re.compile(r'(?i)((?:jwt|bearer|token|secret|key|password)\s*[:=]\s*)["\']?[A-Za-z0-9_\-./+=]{8,}'),
         r"\1[REDACTED]",
-    ),  # noqa: W605
+    ),
     (re.compile(r"\buser_[a-zA-Z0-9]{20,}\b"), "[CLERK_ID_REDACTED]"),
     (re.compile(r"\bcompany_[a-zA-Z0-9]{20,}\b"), "[COMPANY_ID_REDACTED]"),
 ]
@@ -132,7 +132,7 @@ def setup_logging(service_name: str = "workticket-backend") -> None:
         logging.getLogger(_billing_logger).setLevel(logging.WARNING)
 
 
-def get_logger(name: str, trace_id: str = None, company_id: str = None, job_id: str = None) -> logging.Logger:
+def get_logger(name: str, trace_id: str | None = None, company_id: str | None = None, job_id: str | None = None) -> logging.Logger:
     """Get a logger with structured context pre-populated."""
     logger = logging.getLogger(name)
     logger = logging.LoggerAdapter(

@@ -36,7 +36,7 @@ _VAULT_TOKEN = os.environ.get("VAULT_TOKEN", "")
 _VAULT_KV_PATH = os.environ.get("VAULT_KV_PATH", "secret")
 _VAULT_KV_PREFIX = os.environ.get("VAULT_KV_PREFIX", "workticket")
 _VAULT_ENABLED = os.environ.get("VAULT_ENABLED", "").lower() in ("true", "1", "yes")
-_VAULT_ENFORCED_SECRETS = set(s.strip() for s in os.environ.get("VAULT_ENFORCED_SECRETS", "").split(",") if s.strip())
+_VAULT_ENFORCED_SECRETS = {s.strip() for s in os.environ.get("VAULT_ENFORCED_SECRETS", "").split(",") if s.strip()}
 _V_DEBUG = os.environ.get("DEBUG", "").lower() in ("true", "1", "yes")
 
 # Cache: {secret_key: (value, expires_at)}

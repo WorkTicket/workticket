@@ -1,0 +1,95 @@
+name: OpenAPI Schema Validation
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/backend/app/**/*.py'
+      - 'src/backend/openapi.json'
+
+jobs:
+  schema-check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: workticket
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r src/backend/requirements.txt
+
+      - name: Generate OpenAPI schema
+        working-directory: src/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/workticket
+        run: |
+          python -c "
+          import json
+          from app.main import app
+          schema = app.openapi()
+          # Strip version for comparison
+          schema['info']['version'] = 'snapshot'
+          with open('openapi.generated.json', 'w') as f:
+              json.dump(schema, f, indent=2, sort_keys=True)
+          print('OpenAPI schema generated')
+          "
+
+      - name: Validate schema with Redocly
+        run: |
+          npm install -g @redocly/cli
+          redocly lint src/backend/openapi.generated.json --extends=minimal
+
+      - name: Compare against committed schema
+        run: |
+          if [ -f src/backend/openapi.json ]; then
+            echo "Comparing generated schema against committed version..."
+            python -c "
+            import json, sys
+            with open('src/backend/openapi.generated.json') as f:
+                gen = json.load(f)
+            with open('src/backend/openapi.json') as f:
+                comm = json.load(f)
+            gen['info']['version'] = 'snapshot'
+            comm['info']['version'] = 'snapshot'
+            if gen != comm:
+                print('WARNING: Generated OpenAPI schema differs from committed version!')
+                print('Run \"python -c \\\"from app.main import app; import json; json.dump(app.openapi(), open(\\'openapi.json\\',\\'w\\'), indent=2)\\\"\" to update.')
+                # Compare paths
+                gen_paths = set(gen.get('paths', {}).keys())
+                comm_paths = set(comm.get('paths', {}).keys())
+                added = gen_paths - comm_paths
+                removed = comm_paths - gen_paths
+                if added:
+                    print(f'  Added endpoints: {added}')
+                if removed:
+                    print(f'  Removed endpoints: {removed}')
+            else:
+                print('OK: OpenAPI schema matches committed version')
+            "
+          else
+            echo "No committed openapi.json found — creating one"
+            cp src/backend/openapi.generated.json src/backend/openapi.json
+          fi
+
+      - name: Upload generated schema
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-schema
+          path: src/backend/openapi.generated.json

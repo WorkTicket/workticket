@@ -1,0 +1,11 @@
+Contact: mailto:security@workticket.app
+Expires: 2027-12-31T23:59:59.000Z
+Encryption: https://workticket.app/.well-known/pgp-key.txt
+Acknowledgments: https://workticket.app/security/thanks
+Policy: https://workticket.app/security/vdp
+Canonical: https://workticket.app/.well-known/security.txt
+Hiring: https://workticket.app/careers
+Preferred-Languages: en
+
+# WorkTicket Vulnerability Disclosure Program
+# More info: https://workticket.app/security/vdp

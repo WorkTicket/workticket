@@ -54,10 +54,14 @@ Most contractor software is built for office managers, not technicians. WorkTick
 
 Docker is the sole supported development and deployment environment.
 
+**Recommended:** Run the bootstrap script for first-time setup:
+- **Windows:** `.\bootstrap.ps1`
+- **Linux/Mac:** `./bootstrap.sh`
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/WorkTicket/workticket.git
-cd WorkTicket
+cd workticket
 
 # 2. Configure environment
 cd src

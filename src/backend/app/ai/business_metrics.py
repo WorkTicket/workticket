@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class BusinessMetrics:
     @staticmethod
-    async def get_overview(minutes: int = 1440, company_id: str = None) -> dict:
+    async def get_overview(minutes: int = 1440, company_id: str | None = None) -> dict:
         cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
         async with AsyncSessionLocal() as db:
             base_filter = [AIAuditLog.created_at >= cutoff]
@@ -52,7 +52,7 @@ class BusinessMetrics:
             }
 
     @staticmethod
-    async def get_feature_usage(minutes: int = 1440, company_id: str = None) -> dict:
+    async def get_feature_usage(minutes: int = 1440, company_id: str | None = None) -> dict:
         cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
         async with AsyncSessionLocal() as db:
             base_filter = [AIAuditLog.created_at >= cutoff]
@@ -83,7 +83,7 @@ class BusinessMetrics:
             return features
 
     @staticmethod
-    async def get_per_tenant(minutes: int = 1440, company_id: str = None) -> list:
+    async def get_per_tenant(minutes: int = 1440, company_id: str | None = None) -> list:
         cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
         async with AsyncSessionLocal() as db:
             base_filter = [
@@ -121,7 +121,7 @@ class BusinessMetrics:
             return tenants
 
     @staticmethod
-    async def get_cost_estimate(minutes: int = 1440, company_id: str = None) -> dict:
+    async def get_cost_estimate(minutes: int = 1440, company_id: str | None = None) -> dict:
         cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
         async with AsyncSessionLocal() as db:
             base_filter = [AIAuditLog.created_at >= cutoff]
@@ -180,7 +180,7 @@ class BusinessMetrics:
             }
 
     @staticmethod
-    async def get_completion_times(minutes: int = 1440, company_id: str = None) -> dict:
+    async def get_completion_times(minutes: int = 1440, company_id: str | None = None) -> dict:
         cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
         async with AsyncSessionLocal() as db:
             base_filter = [AIAuditLog.created_at >= cutoff, AIAuditLog.latency_ms > 0]
@@ -208,7 +208,7 @@ class BusinessMetrics:
             }
 
     @staticmethod
-    async def get_all(minutes: int = 1440, company_id: str = None) -> dict:
+    async def get_all(minutes: int = 1440, company_id: str | None = None) -> dict:
         overview, features, tenants, costs, completion = await asyncio.gather(
             BusinessMetrics.get_overview(minutes, company_id=company_id),
             BusinessMetrics.get_feature_usage(minutes, company_id=company_id),

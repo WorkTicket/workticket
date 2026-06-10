@@ -91,7 +91,7 @@ async def change_plan(
     account = await quota_engine.get_or_create_account(db, current_user.company_id, payload.plan)
     old_plan = account.plan
     new_tier = PLAN_TIERS[payload.plan]
-    _old_tier = PLAN_TIERS.get(old_plan, PLAN_TIERS["free"])  # noqa: F841
+    _old_tier = PLAN_TIERS.get(old_plan, PLAN_TIERS["free"])
 
     if not company or not company.stripe_subscription_id:
         raise HTTPException(

@@ -11,7 +11,7 @@ data:
     [pgbouncer]
     listen_addr = 0.0.0.0
     listen_port = 6432
-    auth_type = md5
+    auth_type = scram-sha-256
     auth_file = /etc/pgbouncer/userlist.txt
     admin_users = pgbouncer_admin
     stats_users = pgbouncer_stats
@@ -88,9 +88,7 @@ spec:
               name: pgbouncer
           env:
             - name: DATABASE_HOST
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.hostIP
+              value: "postgres"
             - name: DATABASE_NAME
               value: workticket
           volumeMounts:

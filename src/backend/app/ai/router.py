@@ -888,6 +888,8 @@ async def _verify_ws_token(token: str) -> _WSAuthUser:
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
+    from app.db.rls import set_rls_bypass_context
+
     async with AsyncSessionLocal() as db:
         await set_rls_bypass_context(db)  # Token verification requires cross-tenant User lookup
         result = await db.execute(select(User).where(User.id == user_id))
@@ -975,7 +977,6 @@ async def _ws_sender(websocket: WebSocket, send_queue: asyncio.Queue):
                 observe_ws_message_latency(_elapsed_ms)
             except Exception as _e:
                 logger.debug("Failed to observe ws message latency: %s", _e)
-                pass
         except WebSocketDisconnect:
             break
         except Exception as _e:
@@ -1065,7 +1066,7 @@ async def _cancel_all_ws_tasks(conn_id: str):
         task.cancel()
 
 
-async def _replay_missed_events(websocket: WebSocket, job_id: UUID, last_event_id: str, send_queue: asyncio.Queue):
+async def _replay_missed_events(websocket: WebSocket, job_id: UUID, last_event_id: str, send_queue: asyncio.Queue, company_id: UUID | None = None):
     """Replay missed job status events from Redis Streams (primary) and DB (fallback).
 
     CRITICAL-2 FIX: Uses Redis Streams XRANGE to replay ALL missed events
@@ -1124,7 +1125,8 @@ async def _replay_missed_events(websocket: WebSocket, job_id: UUID, last_event_i
 
         async with AsyncSessionLocal() as replay_db:
             from app.db.rls import set_rls_tenant_context
-            await set_rls_tenant_context(replay_db, current_user.company_id)
+            if company_id:
+                await set_rls_tenant_context(replay_db, company_id)
             result = await replay_db.execute(
                 select(ExecutionTrace)
                 .where(
@@ -1249,7 +1251,7 @@ async def _websocket_job_status_handler(
         return
 
     # C4-FIX: Capture the member ID for accurate sorted-set removal on disconnect
-    ws_rate_limit, ws_remaining, _ws_conn_member = await _increment_ws_connection(user_id)
+    ws_rate_limit, _ws_remaining, _ws_conn_member = await _increment_ws_connection(user_id)
     if not ws_rate_limit:
         await _decrement_ws_global(_ws_global_member)
         effective_max = _MAX_WS_CONNECTIONS_PER_USER
@@ -1265,7 +1267,7 @@ async def _websocket_job_status_handler(
     _sender_task = await _track_ws_task(conn_id, _ws_sender(websocket, _send_queue))
 
     # Replay missed events after WS accept and queue setup (W1)
-    await _replay_missed_events(websocket, job_id, last_event_id, send_queue=_send_queue)
+    await _replay_missed_events(websocket, job_id, last_event_id, send_queue=_send_queue, company_id=current_user.company_id)
 
     # Track active WebSocket connection for graceful shutdown
     async with _active_websockets_lock:
@@ -1277,7 +1279,7 @@ async def _websocket_job_status_handler(
     except Exception as _e:
         logger.debug("Failed to report ws_connections metric after accept: %s", _e)
     # W2: Update replica heartbeat after connect
-    asyncio.ensure_future(_update_ws_replica_heartbeat())
+        _heartbeat_future = asyncio.ensure_future(_update_ws_replica_heartbeat())  # noqa: RUF006
 
     # W2: Start replica heartbeat loop if not already running
     if not hasattr(_websocket_job_status_handler, "_heartbeat_started"):
@@ -1359,6 +1361,7 @@ async def _websocket_job_status_handler(
                             else:
                                 _reauth_hit_db = True
                                 async with AsyncSessionLocal() as reauth_db:
+                                    from app.db.rls import set_rls_bypass_context
                                     await set_rls_bypass_context(reauth_db)  # Re-auth User lookup
                                     recheck = await reauth_db.execute(select(User).where(User.id == current_user.id))
                                     fresh_user = recheck.scalar_one_or_none()
@@ -1659,7 +1662,7 @@ async def _websocket_job_status_handler(
         except Exception as _e:
             logger.debug("Failed to set ws_connections metric in finally: %s", _e)
         # W2: Update replica heartbeat after disconnect
-        asyncio.ensure_future(_update_ws_replica_heartbeat())
+    _heartbeat_future = asyncio.ensure_future(_update_ws_replica_heartbeat())  # noqa: RUF006
 
 
 @router.get("/ws-connections")

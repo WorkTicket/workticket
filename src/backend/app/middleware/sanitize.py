@@ -94,9 +94,7 @@ async def _get_response_body(response: Response) -> object:
     if hasattr(response, "body"):
         body_bytes = response.body
     else:
-        chunks = []
-        async for chunk in response.body_iterator:  # type: ignore[attr-defined]
-            chunks.append(chunk)
+        chunks = [chunk async for chunk in response.body_iterator]  # type: ignore[attr-defined]
         body_bytes = b"".join(chunks)
     if not body_bytes:
         return None

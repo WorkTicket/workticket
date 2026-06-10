@@ -16,7 +16,7 @@ _shutdown_event = threading.Event()
 def _cleanup_all_locks():
     """Release all active beat locks on process termination."""
     _shutdown_event.set()
-    for lock in list(_active_locks):
+    for lock in _active_locks:
         with contextlib.suppress(Exception):
             lock.release()
 

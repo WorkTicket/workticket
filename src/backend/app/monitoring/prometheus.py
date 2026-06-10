@@ -342,7 +342,6 @@ def _redis_metric(section: str, key: str, default=0):
             return int(info.get(key, default))
     except Exception as e:
         logger.debug("Failed to get Redis metric %s/%s: %s", section, key, e)
-        pass
     return default
 
 
@@ -355,7 +354,6 @@ def _redis_info_value(key: str, default=""):
             return val or default
     except Exception as e:
         logger.debug("Failed to get Redis info value %s: %s", key, e)
-        pass
     return default
 
 
@@ -390,7 +388,6 @@ def _llen_metric(queue: str) -> int:
             return client.llen(queue) or 0
     except Exception as e:
         logger.debug("Failed to get llen for queue %s: %s", queue, e)
-        pass
     return 0
 
 
@@ -1307,7 +1304,7 @@ def increment_state_cycle_backoff(job_id: str):
         _state_cycle_backoff_counter.labels(job_id=job_id).inc()
 
 
-def increment_counter(name: str, tags: dict = None):
+def increment_counter(name: str, tags: dict | None = None):
     key = f"{name}:{tags}" if tags else name
     with _counter_registry_lock:
         _counter_registry[key] = _counter_registry.get(key, 0) + 1
@@ -1388,7 +1385,7 @@ def increment_counter(name: str, tags: dict = None):
         _stripe_ip_cache_empty_counter.inc()
 
 
-def get_counter(name: str, tags: dict = None) -> int:
+def get_counter(name: str, tags: dict | None = None) -> int:
     key = f"{name}:{tags}" if tags else name
     with _counter_registry_lock:
         return _counter_registry.get(key, 0)

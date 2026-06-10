@@ -8,7 +8,7 @@ from app.database import (
     MAX_RETRIES,
     RETRY_BACKOFF,
     AsyncSessionLocal,
-    DBUnavailable,
+    DBUnavailableError,
     _check_db_circuit,
     _record_pool_exhaustion,
     is_retryable_error,
@@ -81,7 +81,7 @@ def transactional(max_retries: int = MAX_RETRIES):
                     exc_str = str(exc)
                     if "timeout" in exc_str.lower() and "pool" in exc_str.lower():
                         _record_pool_exhaustion()
-                        raise DBUnavailable("Database connection pool exhausted") from exc
+                        raise DBUnavailableError("Database connection pool exhausted") from exc
                     if attempt < max_retries and is_retryable_error(exc):
                         last_exc = exc
                         await asyncio.sleep(RETRY_BACKOFF[attempt])
@@ -92,7 +92,7 @@ def transactional(max_retries: int = MAX_RETRIES):
                         await clear_rls_tenant_context(session)
                         await session.close()
             if last_exc:
-                raise DBUnavailable("DB operation failed after retries") from last_exc
+                raise DBUnavailableError("DB operation failed after retries") from last_exc
 
         return wrapper
 

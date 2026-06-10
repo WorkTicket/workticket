@@ -20,6 +20,10 @@ _route_overrides: dict[str, tuple[float, int]] = {
     "/readyz": (0.05, 3),  # 3/min — exposes circuit breaker state, queue depths, etc.
     "/livez": (float("inf"), float("inf")),
     "/healthz": (float("inf"), float("inf")),
+    # Auth endpoints - strict rate limits to prevent brute-force
+    "/api/v1/auth/login": (0.083, 5),  # 5/min
+    "/api/v1/auth/register": (0.05, 3),  # 3/min
+    "/api/v1/auth/token": (0.167, 10),  # 10/min
     # Billing webhooks - strict rate limit
     "/api/v1/billing/webhook": (0.167, 1),
     # Billing operations - sensitive, heavily restricted

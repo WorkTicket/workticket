@@ -9,7 +9,7 @@ Encrypted format: "v1:<base64_nonce>:<base64_ciphertext>"
 
 Key management:
   - PII_ENCRYPTION_KEY env var (passphrase) → PBKDF2 → 32-byte AES key
-  - Falls back to PUSH_TOKEN_ENCRYPTION_KEY if PII key not set
+  - No fallback to other keys — requires its own dedicated key
   - Production mode: raises ValueError if no key configured
   - Debug mode: logs warning, stores plaintext
 
@@ -33,11 +33,34 @@ logger = logging.getLogger(__name__)
 
 _KEY_VERSION = 1
 _NONCE_LENGTH = 12
-_DEFAULT_SALT = os.environ.get("PII_SALT", "").encode() or os.urandom(16)
+def _get_default_salt() -> bytes:
+    """Get the PBKDF2 salt from configuration.
+
+    Priority:
+    1. PII_SALT env var (explicit)
+    2. Derived from PII_ENCRYPTION_KEY via SHA256
+    3. Raises ValueError if no encryption material is configured
+    """
+    from hashlib import sha256
+
+    env_salt = os.environ.get("PII_SALT", "").encode()
+    if env_salt:
+        return env_salt
+    key_material = os.environ.get(_ENCRYPTION_KEY_ENV, "")
+    if key_material:
+        return sha256(key_material.encode()).digest()
+    debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
+    if debug:
+        return b"workticket-dev-salt-v1"
+    raise ValueError(
+        "PII_SALT or PII_ENCRYPTION_KEY must be set. "
+        "Without a stable salt, previously encrypted PII data cannot be recovered after restart."
+    )
+
+_DEFAULT_SALT = _get_default_salt()
 _DEFAULT_ITERATIONS = 600_000
 _FORMAT_PREFIX = f"v{_KEY_VERSION}:"
 _ENCRYPTION_KEY_ENV = "PII_ENCRYPTION_KEY"
-_FALLBACK_KEY_ENV = "PUSH_TOKEN_ENCRYPTION_KEY"
 
 
 def derive_key(key_material: str, salt: bytes = _DEFAULT_SALT, iterations: int = _DEFAULT_ITERATIONS) -> bytes:
@@ -69,7 +92,7 @@ def get_or_derive_key() -> bytes:
     Raises:
         ValueError: If PII_ENCRYPTION_KEY is not set and not in DEBUG mode.
     """
-    raw_key = os.environ.get(_ENCRYPTION_KEY_ENV, "") or os.environ.get(_FALLBACK_KEY_ENV, "")
+    raw_key = os.environ.get(_ENCRYPTION_KEY_ENV, "")
     if not raw_key:
         debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
         if not debug:
@@ -135,7 +158,7 @@ def _get_raw_key() -> bytes:
     (hex-encoded) without PBKDF2 derivation. This function reconstructs that
     key to allow reading old JSON-encrypted records still present in the database.
     """
-    raw = os.environ.get(_ENCRYPTION_KEY_ENV, "") or os.environ.get(_FALLBACK_KEY_ENV, "")
+    raw = os.environ.get(_ENCRYPTION_KEY_ENV, "")
     if raw:
         try:
             key_bytes = bytes.fromhex(raw) if all(c in "0123456789abcdefABCDEF" for c in raw) else raw.encode()

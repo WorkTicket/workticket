@@ -1,0 +1,211 @@
+# =============================================================================
+# Production-Full Docker Compose
+# Includes PgBouncer + Redis Sentinel + all services with HA profiles
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod-full.yml up -d
+# =============================================================================
+
+services:
+
+  # ── PgBouncer (Transaction Pooling) ──
+  pgbouncer:
+    image: bitnami/pgbouncer:1.23
+    restart: unless-stopped
+    mem_limit: 128m
+    mem_reservation: 64m
+    cpus: 0.5
+    ports:
+      - "127.0.0.1:6432:6432"
+    networks:
+      - backend-db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGBOUNCER_DATABASE: ${POSTGRES_DB:-workticket}
+      PGBOUNCER_HOST: postgres
+      PGBOUNCER_PORT: "5432"
+      PGBOUNCER_USERNAME: ${POSTGRES_USER:-postgres}
+      PGBOUNCER_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: "200"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "25"
+      PGBOUNCER_RESERVE_POOL_SIZE: "5"
+      PGBOUNCER_RESERVE_POOL_TIMEOUT: "5"
+      PGBOUNCER_QUERY_TIMEOUT: "30"
+      PGBOUNCER_IDLE_TRANSACTION_TIMEOUT: "60"
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: "600"
+      PGBOUNCER_STATS_PERIOD: "60"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}", "-h", "127.0.0.1", "-p", "6432", "-d", "${POSTGRES_DB:-workticket}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis Sentinel (Broker HA) ──
+  redis-sentinel-broker-1:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    mem_reservation: 32m
+    cpus: 0.25
+    ports:
+      - "127.0.0.1:26379:26379"
+    networks:
+      - backend-redis
+    volumes:
+      - sentinel-broker-1-data:/data
+    command: >
+      redis-server /etc/redis/sentinel.conf --sentinel
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis-sentinel-broker-2:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    mem_reservation: 32m
+    cpus: 0.25
+    ports:
+      - "127.0.0.1:26380:26379"
+    networks:
+      - backend-redis
+    command: >
+      redis-server /etc/redis/sentinel.conf --sentinel
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis-sentinel-broker-3:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    mem_reservation: 32m
+    cpus: 0.25
+    ports:
+      - "127.0.0.1:26381:26379"
+    networks:
+      - backend-redis
+    command: >
+      redis-server /etc/redis/sentinel.conf --sentinel
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Redis Sentinel (Cache HA) ──
+  redis-sentinel-cache-1:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    mem_reservation: 32m
+    cpus: 0.25
+    ports:
+      - "127.0.0.1:26382:26379"
+    networks:
+      - backend-redis
+    command: >
+      redis-server /etc/redis/sentinel.conf --sentinel
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis-sentinel-cache-2:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    mem_reservation: 32m
+    cpus: 0.25
+    ports:
+      - "127.0.0.1:26383:26379"
+    networks:
+      - backend-redis
+    command: >
+      redis-server /etc/redis/sentinel.conf --sentinel
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  redis-sentinel-cache-3:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    mem_reservation: 32m
+    cpus: 0.25
+    ports:
+      - "127.0.0.1:26384:26379"
+    networks:
+      - backend-redis
+    command: >
+      redis-server /etc/redis/sentinel.conf --sentinel
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Resource limits for existing services ──
+  backend:
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpus: 2
+
+  celery-worker-default:
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpus: 2
+    deploy:
+      replicas: 2
+
+  celery-worker-beat:
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpus: 1
+
+  celery-beat:
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: 0.5
+
+  nginx:
+    mem_limit: 256m
+    mem_reservation: 128m
+    cpus: 1
+
+  postgres:
+    mem_limit: 4g
+    mem_reservation: 2g
+    cpus: 4
+
+  redis-broker:
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: 1
+
+  redis-cache:
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: 1
+
+networks:
+  frontend:
+    driver: bridge
+  backend-db:
+    driver: bridge
+    internal: true
+  backend-redis:
+    driver: bridge
+    internal: true
+
+volumes:
+  sentinel-broker-1-data:
+  sentinel-cache-1-data:

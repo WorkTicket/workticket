@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 
-class WorkTicketException(Exception):
+class WorkTicketError(Exception):
     """Base exception for WorkTicket application."""
 
     def __init__(
@@ -25,7 +25,7 @@ class WorkTicketException(Exception):
         super().__init__(self.message)
 
 
-class ValidationError(WorkTicketException):
+class ValidationError(WorkTicketError):
     """Raised when input validation fails."""
 
     def __init__(
@@ -41,7 +41,7 @@ class ValidationError(WorkTicketException):
         )
 
 
-class AuthenticationError(WorkTicketException):
+class AuthenticationError(WorkTicketError):
     """Raised when authentication fails."""
 
     def __init__(
@@ -57,7 +57,7 @@ class AuthenticationError(WorkTicketException):
         )
 
 
-class AuthorizationError(WorkTicketException):
+class AuthorizationError(WorkTicketError):
     """Raised when user lacks permissions."""
 
     def __init__(
@@ -73,7 +73,7 @@ class AuthorizationError(WorkTicketException):
         )
 
 
-class NotFoundError(WorkTicketException):
+class NotFoundError(WorkTicketError):
     """Raised when a resource is not found."""
 
     def __init__(
@@ -89,7 +89,7 @@ class NotFoundError(WorkTicketException):
         )
 
 
-class ConflictError(WorkTicketException):
+class ConflictError(WorkTicketError):
     """Raised when there is a conflict with current state."""
 
     def __init__(
@@ -105,7 +105,7 @@ class ConflictError(WorkTicketException):
         )
 
 
-class RateLimitError(WorkTicketException):
+class RateLimitError(WorkTicketError):
     """Raised when rate limit is exceeded."""
 
     def __init__(
@@ -121,7 +121,7 @@ class RateLimitError(WorkTicketException):
         )
 
 
-class QuotaExceededError(WorkTicketException):
+class QuotaExceededError(WorkTicketError):
     """Raised when quota is exceeded."""
 
     def __init__(
@@ -137,7 +137,7 @@ class QuotaExceededError(WorkTicketException):
         )
 
 
-class ServiceUnavailableError(WorkTicketException):
+class ServiceUnavailableError(WorkTicketError):
     """Raised when a service is unavailable."""
 
     def __init__(
@@ -153,13 +153,13 @@ class ServiceUnavailableError(WorkTicketException):
         )
 
 
-async def workticket_exception_handler(request: Request, exc: WorkTicketException) -> JSONResponse:
-    """Handle WorkTicketException and return consistent JSON response."""
+async def workticket_exception_handler(request: Request, exc: WorkTicketError) -> JSONResponse:
+    """Handle WorkTicketError and return consistent JSON response."""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
 
     log_level = logger.error if exc.status_code >= 500 else logger.warning
     log_level(
-        f"WorkTicketException: {exc.error_code} - {exc.message}",
+        f"WorkTicketError: {exc.error_code} - {exc.message}",
         extra={
             "error_code": exc.error_code,
             "message": exc.message,
@@ -236,7 +236,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
 
     logger.error(
-        f"Unhandled exception: {type(exc).__name__} - {str(exc)}",
+        f"Unhandled exception: {type(exc).__name__} - {exc!s}",
         extra={
             "exception_type": type(exc).__name__,
             "error_message": str(exc),
@@ -262,7 +262,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 
 def db_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Handle DBUnavailable exceptions from the database circuit breaker."""
+    """Handle DBUnavailableError exceptions from the database circuit breaker."""
     import logging
 
     _logger = logging.getLogger(__name__)
@@ -285,9 +285,9 @@ def db_unavailable_handler(request: Request, exc: Exception) -> JSONResponse:
 
 def setup_exception_handlers(app):
     """Setup exception handlers for the FastAPI application."""
-    from app.database import DBUnavailable
+    from app.database import DBUnavailableError
 
-    app.add_exception_handler(WorkTicketException, workticket_exception_handler)
-    app.add_exception_handler(DBUnavailable, db_unavailable_handler)
+    app.add_exception_handler(WorkTicketError, workticket_exception_handler)
+    app.add_exception_handler(DBUnavailableError, db_unavailable_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(Exception, general_exception_handler)

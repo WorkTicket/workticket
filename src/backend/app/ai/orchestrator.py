@@ -24,7 +24,7 @@ class AIOrchestrator:
         self,
         transcript: str = "",
         vision_analysis: str = "",
-        job_metadata: dict = None,
+        job_metadata: dict | None = None,
         trace_id: str | None = None,
     ) -> AIOutputSchema:
         return await self.text_service.generate_structured_output(
