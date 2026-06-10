@@ -1,0 +1,43 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: pod-kill-backend
+  namespace: workticket
+spec:
+  schedule: "0 6 * * 1"  # Every Monday at 06:00 UTC
+  historyLimit: 2
+  concurrencyPolicy: Forbid
+  type: PodChaos
+  podChaos:
+    selector:
+      namespaces:
+        - workticket
+      labelSelectors:
+        app: workticket
+        component: api
+    mode: one
+    action: pod-kill
+    duration: 60s
+    gracePeriod: 240
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: pod-kill-celery
+  namespace: workticket
+spec:
+  schedule: "30 6 * * 1"  # Every Monday at 06:30 UTC
+  historyLimit: 2
+  concurrencyPolicy: Forbid
+  type: PodChaos
+  podChaos:
+    selector:
+      namespaces:
+        - workticket
+      labelSelectors:
+        app: workticket
+        component: celery-worker
+    mode: one
+    action: pod-kill
+    duration: 60s
+    gracePeriod: 240

@@ -12,10 +12,14 @@ resources:
   - api-deployment.yaml
   - worker-deployments.yaml
   - network-policy.yaml
+  - service-account.yaml
+  - ingress.yaml
+  - pgbouncer.yaml
+  - web-dashboard-service.yaml
 
 commonLabels:
   app.kubernetes.io/name: workticket
-  app.kubernetes.io/version: "1.0.0-beta-ready"
+  app.kubernetes.io/version: "1.0.0-beta.1"
 
 configMapGenerator:
   - name: workticket-config

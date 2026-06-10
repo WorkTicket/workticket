@@ -1,0 +1,28 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: workticket-api-tls
+  namespace: workticket
+spec:
+  secretName: workticket-api-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: api.workticket.app
+  dnsNames:
+    - api.workticket.app
+    - admin.workticket.app
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: workticket-api-tls-staging
+  namespace: workticket-staging
+spec:
+  secretName: workticket-api-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  commonName: api.staging.workticket.app
+  dnsNames:
+    - api.staging.workticket.app

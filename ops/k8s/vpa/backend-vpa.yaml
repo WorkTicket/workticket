@@ -1,0 +1,119 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: workticket-api-vpa
+  namespace: workticket
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: workticket-api
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: api
+        minAllowed:
+          cpu: 250m
+          memory: 256Mi
+        maxAllowed:
+          cpu: 4
+          memory: 2Gi
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: celery-worker-text-vpa
+  namespace: workticket
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: celery-worker-text
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: worker
+        minAllowed:
+          cpu: 500m
+          memory: 512Mi
+        maxAllowed:
+          cpu: 4
+          memory: 4Gi
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: celery-worker-image-vpa
+  namespace: workticket
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: celery-worker-image
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: worker
+        minAllowed:
+          cpu: 500m
+          memory: 512Mi
+        maxAllowed:
+          cpu: 4
+          memory: 4Gi
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: celery-worker-audio-vpa
+  namespace: workticket
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: celery-worker-audio
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: worker
+        minAllowed:
+          cpu: 500m
+          memory: 512Mi
+        maxAllowed:
+          cpu: 4
+          memory: 4Gi
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: celery-worker-default-vpa
+  namespace: workticket
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: celery-worker-default
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: worker
+        minAllowed:
+          cpu: 250m
+          memory: 256Mi
+        maxAllowed:
+          cpu: 2
+          memory: 2Gi
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsAndLimits

@@ -1,0 +1,100 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: verify-cosign-signature
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      verifyImages:
+        - image: "ghcr.io/org/workticket/*"
+          key: |-
+            -----BEGIN PUBLIC KEY-----
+            # Replace with your cosign public key before changing validationFailureAction to Enforce
+            # Generate: cosign generate-key-pair
+            # Or use keyless: set cosignPubKey: null and add --certificate-oidc-issuer, etc.
+            -----END PUBLIC KEY-----
+          mutateDigest: true
+          verifyDigest: true
+          requiredAnnotations:
+            - key: "dev.cosignproject.cosign/rekorBundle"
+              value: "*"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-non-root
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Running as root is not allowed. Set runAsNonRoot: true."
+        anyPattern:
+          - spec:
+              securityContext:
+                runAsNonRoot: true
+          - spec:
+              containers:
+                - securityContext:
+                    runAsNonRoot: true
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-readonly-rootfs
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-readonly-rootfs
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Read-only root filesystem is required."
+        pattern:
+          spec:
+            =(securityContext):
+              =(readOnlyRootFilesystem): true
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: drop-all-capabilities
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-capabilities-dropped
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "All capabilities must be dropped."
+        anyPattern:
+          - spec:
+              containers:
+                - securityContext:
+                    capabilities:
+                      drop:
+                        - ALL

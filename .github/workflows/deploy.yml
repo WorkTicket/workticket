@@ -1,0 +1,140 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/backend
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run backend tests
+        working-directory: src
+        run: |
+          docker compose -f docker-compose.test.yml up --abort-on-container-exit --timeout 120
+      - name: Run lint & typecheck
+        working-directory: src/backend
+        run: |
+          pip install -r requirements.txt
+          pip install ruff mypy pytest
+          ruff check app/
+          mypy app/
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,suffix=,format=long
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: src
+          file: src/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+  scan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.19.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: 1
+          severity: CRITICAL,HIGH
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  sign:
+    needs: scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sigstore/cosign-installer@v3.6.0
+      - name: Sign image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}"
+      - name: Attach SBOM
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign attach sbom --sbom src/backend/sbom.spdx "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}"
+
+  deploy-staging:
+    needs: sign
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update kustomize image tag
+        working-directory: src/k8s/overlays/staging
+        run: |
+          kustomize edit set image workticket-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}
+      - name: Commit and push staging overlay
+        run: |
+          git config user.name "workticket-bot"
+          git config user.email "bot@workticket.app"
+          git add src/k8s/overlays/staging
+          git commit -m "chore: update staging image to ${{ github.sha }} [skip ci]"
+          git push
+
+  deploy-prod:
+    needs: [sign, deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update kustomize image tag
+        working-directory: src/k8s/overlays/prod
+        run: |
+          kustomize edit set image workticket-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}
+      - name: Commit and push prod overlay
+        run: |
+          git config user.name "workticket-bot"
+          git config user.email "bot@workticket.app"
+          git add src/k8s/overlays/prod
+          git commit -m "chore: update prod image to ${{ github.sha }} [skip ci]"
+          git push

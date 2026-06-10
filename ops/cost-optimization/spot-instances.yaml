@@ -1,0 +1,54 @@
+# Spot Instance Strategy for WorkTicket
+#
+# Celery workers are ideal for spot instances because they are:
+# - Stateless (tasks are in Redis broker)
+# - Fault-tolerant (tasks retry on failure)
+# - Burstable (AI workloads are spiky)
+#
+# Backend API stays on on-demand for reliability.
+
+## Node Group Configuration (in Terraform)
+
+# Primary on-demand node group:
+#   - Instance types: m6i.large, m6a.large
+#   - Min: 3, Max: 15, Desired: 5
+#   - Labels: workticket.io/node-pool=ondemand
+#
+# Spot node group:
+#   - Instance types: m6i.large, m6a.large, c6i.large (diverse for spot)
+#   - Min: 0, Max: 20, Desired: 2
+#   - Labels: workticket.io/node-pool=spot
+#   - Taints: workticket.io/spot=true:NoSchedule
+
+## Pod Tolerations for Spot Nodes (add to celery worker Deployments)
+# tolerations:
+#   - key: "workticket.io/spot"
+#     operator: "Equal"
+#     value: "true"
+#     effect: "NoSchedule"
+#
+# nodeSelector:
+#   workticket.io/node-pool: spot
+
+## Graceful Termination Handler
+# Spot instance termination notice is available via:
+#   curl http://169.254.169.254/latest/meta-data/spot/termination-time
+#
+# Implement a termination handler sidecar that:
+# 1. Polls the termination notice endpoint every 5 seconds
+# 2. On termination notice: set worker to shutdown mode
+# 3. Celery worker sends SIGTERM and finishes current tasks
+# 4. Prevents new task assignment via --without-gossip --without-mingle
+
+## Cost Comparison (us-east-1, m6i.large)
+# On-demand: $0.096/hour = ~$70/month
+# Spot: ~$0.029/hour = ~$21/month (70% savings)
+#
+# Expected savings with 10 spot nodes: ~$500/month
+
+## Budget Allocation
+# - Backend API: On-demand only (3-10 nodes)
+# - Celery workers (AI): Spot preferred (2-10 nodes)
+# - Celery workers (default): Spot preferred (1-5 nodes)
+# - PgBouncer: On-demand (2 nodes)
+# - Monitoring: On-demand (spot-eligible with toleration)

@@ -1,0 +1,102 @@
+# Tempo Helm values
+tempo:
+  authEnabled: false
+  retention: 336h
+  search:
+    maxResultCount: 10000
+    maxDuration: 24h
+  metricsGenerator:
+    enabled: true
+    registry:
+      externalLabels:
+        cluster: workticket-prod
+    processor:
+      service_graphs:
+        dimensions:
+          - service.namespace
+      span_metrics:
+        dimensions:
+          - service.name
+          - span.kind
+          - status.code
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: workticket-prod-tempo-traces
+        region: us-east-1
+        insecure: false
+      pool:
+        max_workers: 100
+        queue_depth: 10000
+    block:
+      bloom_filter_false_positive: 0.01
+      index_downsample: 4
+  querier:
+    maxConcurrentQueries: 20
+  ingester:
+    max_block_duration: 30m
+  distributor:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true
+
+ingester:
+  replicas: 2
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
+  persistence:
+    size: 10Gi
+
+distributor:
+  replicas: 2
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+querier:
+  replicas: 2
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+compactor:
+  replicas: 1
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+metricsGenerator:
+  replicas: 1
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s

@@ -1,0 +1,16 @@
+# This service points to the web-dashboard Deployment which is managed
+# separately (see web-dashboard/ directory). The Deployment is not included
+# in this Kustomize base because it may be hosted as a static site on S3/CloudFront.
+apiVersion: v1
+kind: Service
+metadata:
+  name: workticket-web-dashboard
+  namespace: workticket
+spec:
+  selector:
+    app: workticket-web-dashboard
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+  type: ClusterIP

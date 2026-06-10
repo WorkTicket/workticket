@@ -1,0 +1,61 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: network-latency-db
+  namespace: workticket
+spec:
+  schedule: "0 7 * * 2"  # Every Tuesday at 07:00 UTC
+  historyLimit: 2
+  concurrencyPolicy: Forbid
+  type: NetworkChaos
+  networkChaos:
+    selector:
+      namespaces:
+        - workticket
+      labelSelectors:
+        app: workticket
+    mode: all
+    action: delay
+    delay:
+      latency: "100ms"
+      correlation: "50"
+      jitter: "20ms"
+    direction: to
+    target:
+      selector:
+        namespaces:
+          - workticket
+        labelSelectors:
+          app: pgbouncer
+      mode: all
+    duration: 5m
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: network-latency-redis
+  namespace: workticket
+spec:
+  schedule: "30 7 * * 2"  # Every Tuesday at 07:30 UTC
+  historyLimit: 2
+  concurrencyPolicy: Forbid
+  type: NetworkChaos
+  networkChaos:
+    selector:
+      namespaces:
+        - workticket
+      labelSelectors:
+        app: workticket
+    mode: all
+    action: delay
+    delay:
+      latency: "100ms"
+      correlation: "50"
+      jitter: "20ms"
+    direction: to
+    target:
+      selector:
+        namespaces:
+          - workticket
+      mode: all
+    duration: 5m

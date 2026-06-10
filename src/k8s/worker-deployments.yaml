@@ -50,6 +50,11 @@ spec:
                     app: workticket
                     component: celery-worker
       terminationGracePeriodSeconds: 240
+      tolerations:
+        - key: "workticket.io/spot"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
       containers:
         - name: worker
           image: workticket-backend:1.0.0-beta.1
@@ -139,18 +144,11 @@ spec:
                 secretKeyRef:
                   name: workticket-secrets
                   key: REDIS_PASSWORD
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: workticket-secrets
-                  key: POSTGRES_PASSWORD
             - name: CELERY_TASK_SIGNING_KEY
               valueFrom:
                 secretKeyRef:
                   name: workticket-secrets
                   key: CELERY_TASK_SIGNING_KEY
-            - name: CELERY_WORKER_CONCURRENCY
-              value: "3"
           resources:
             requests:
               cpu: 1
@@ -205,6 +203,11 @@ spec:
                     app: workticket
                     component: celery-worker
       terminationGracePeriodSeconds: 240
+      tolerations:
+        - key: "workticket.io/spot"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
       containers:
         - name: worker
           image: workticket-backend:1.0.0-beta.1
@@ -294,11 +297,6 @@ spec:
                 secretKeyRef:
                   name: workticket-secrets
                   key: REDIS_PASSWORD
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: workticket-secrets
-                  key: POSTGRES_PASSWORD
             - name: CELERY_TASK_SIGNING_KEY
               valueFrom:
                 secretKeyRef:
@@ -358,6 +356,11 @@ spec:
                     app: workticket
                     component: celery-worker
       terminationGracePeriodSeconds: 240
+      tolerations:
+        - key: "workticket.io/spot"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
       containers:
         - name: worker
           image: workticket-backend:1.0.0-beta.1
@@ -447,11 +450,6 @@ spec:
                 secretKeyRef:
                   name: workticket-secrets
                   key: REDIS_PASSWORD
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: workticket-secrets
-                  key: POSTGRES_PASSWORD
             - name: CELERY_TASK_SIGNING_KEY
               valueFrom:
                 secretKeyRef:
@@ -600,11 +598,6 @@ spec:
                 secretKeyRef:
                   name: workticket-secrets
                   key: REDIS_PASSWORD
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: workticket-secrets
-                  key: POSTGRES_PASSWORD
             - name: CELERY_TASK_SIGNING_KEY
               valueFrom:
                 secretKeyRef:

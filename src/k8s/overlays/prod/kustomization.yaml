@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: workticket
+
+resources:
+  - ../../
+
+commonLabels:
+  app.kubernetes.io/name: workticket
+  app.kubernetes.io/environment: production
+  app.kubernetes.io/version: "1.0.0-beta-ready"
+
+configMapGenerator:
+  - name: workticket-config
+    behavior: merge
+    literals:
+      - APP_ENV=production
+      - CORS_ORIGINS=https://api.workticket.app,https://admin.workticket.app
+      - DB_POOL_SIZE=25
+      - CELERY_POOL_SIZE=5
+      - DEPLOY_ID=k8s-prod
+
+# WARNING: .env.prod contains secrets and MUST NOT be committed to the repository.
+# For production, replace with ExternalSecrets (ops/k8s/external-secrets/).
+secretGenerator:
+  - name: workticket-secrets
+    behavior: replace
+    files:
+      - .env.prod
+
+images:
+  - name: workticket-backend
+    newTag: 1.0.0-beta.1

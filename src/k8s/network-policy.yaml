@@ -80,7 +80,7 @@ spec:
 
 ---
 # Allow API and workers to reach external PostgreSQL (via Egress)
-# NOTE: Replace EXTERNAL_DB_CIDR with your actual database CIDR range
+# NOTE: Replace EXTERNAL_DB_CIDR with your actual database subnet CIDR range
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -98,11 +98,11 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: workticket
         - ipBlock:
-            cidr: 10.0.0.0/8
+            cidr: 10.0.201.0/24
         - ipBlock:
-            cidr: 172.16.0.0/12
+            cidr: 10.0.202.0/24
         - ipBlock:
-            cidr: 192.168.0.0/16
+            cidr: 10.0.203.0/24
       ports:
         - protocol: TCP
           port: 5432
@@ -128,11 +128,11 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: workticket
         - ipBlock:
-            cidr: 10.0.0.0/8
+            cidr: 10.0.1.0/24
         - ipBlock:
-            cidr: 172.16.0.0/12
+            cidr: 10.0.2.0/24
         - ipBlock:
-            cidr: 192.168.0.0/16
+            cidr: 10.0.3.0/24
       ports:
         - protocol: TCP
           port: 6379
@@ -204,7 +204,9 @@ spec:
           port: 8001
 
 ---
-# Allow API to reach Stripe, Clerk, Resend, Sentry (external HTTPS)
+# Allow API to reach Stripe, Clerk, Resend, Sentry, and other external HTTPS services.
+# Broad egress is necessary for SaaS integrations. Maintain explicit IP allowlists via
+# AWS WAF or Network Firewall for defense-in-depth.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

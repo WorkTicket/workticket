@@ -1,0 +1,53 @@
+# Kubecost Helm values
+kubecostModel:
+  containerStatsEnabled: true
+  etlBucketSecret: ""
+  etlBucketConfigs:
+    - name: default
+      accessKeyId: ""
+      secretAccessKey: ""
+      region: us-east-1
+  warmCache: false
+  warmCachePods: false
+
+kubecostDeployment:
+  enabled: true
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 2Gi
+
+kubecostFrontend:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - cost.workticket.app
+    tls:
+      - hosts:
+          - cost.workticket.app
+        secretName: kubecost-tls
+
+prometheus:
+  enabled: false  # Use existing prometheus-stack
+
+networkCosts:
+  enabled: true
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+grafana:
+  enabled: false  # Use existing Grafana
+
+serviceMonitor:
+  enabled: true

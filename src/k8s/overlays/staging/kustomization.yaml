@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: workticket-staging
+
+resources:
+  - ../../
+
+commonLabels:
+  app.kubernetes.io/name: workticket
+  app.kubernetes.io/environment: staging
+  app.kubernetes.io/version: "1.0.0-beta-ready"
+
+configMapGenerator:
+  - name: workticket-config
+    behavior: merge
+    literals:
+      - APP_ENV=staging
+      - CORS_ORIGINS=https://api.staging.workticket.app
+      - DB_POOL_SIZE=10
+      - CELERY_POOL_SIZE=3
+
+# WARNING: .env.staging contains secrets and MUST NOT be committed to the repository.
+# For production, replace with ExternalSecrets (ops/k8s/external-secrets/).
+secretGenerator:
+  - name: workticket-secrets
+    behavior: replace
+    files:
+      - .env.staging
+
+images:
+  - name: workticket-backend
+    newName: ghcr.io/your-org/workticket/backend
+    newTag: latest-staging

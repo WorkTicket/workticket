@@ -1,0 +1,63 @@
+# Weekly Chaos Engineering Schedule
+# Runs automated chaos experiments during low-traffic periods.
+# Verify: SLOs hold, alerts fire, auto-recovery works.
+#
+# Monday    06:00 UTC  - Pod kill: backend API
+# Monday    06:30 UTC  - Pod kill: Celery worker
+# Tuesday   07:00 UTC  - Network latency: DB (100ms)
+# Tuesday   07:30 UTC  - Network latency: Redis (100ms)
+# Wednesday 08:00 UTC  - CPU stress: backend (80% load, 3min)
+# Wednesday 08:30 UTC  - Memory stress: Celery worker (256MB, 3min)
+# Thursday  06:00 UTC  - Network partition: external API (Stripe/S3)
+# Friday    06:00 UTC  - Full dependency outage simulation
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: network-partition-external
+  namespace: workticket
+spec:
+  schedule: "0 6 * * 4"  # Every Thursday at 06:00 UTC
+  historyLimit: 2
+  concurrencyPolicy: Forbid
+  type: NetworkChaos
+  networkChaos:
+    selector:
+      namespaces:
+        - workticket
+      labelSelectors:
+        app: workticket
+    mode: all
+    action: partition
+    direction: to
+    target:
+      selector:
+        namespaces:
+          - workticket
+        labelSelectors:
+          app: external-egress-simulator
+      mode: all
+    duration: 3m
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: dependency-outage
+  namespace: workticket
+spec:
+  schedule: "0 6 * * 5"
+  historyLimit: 2
+  concurrencyPolicy: Forbid
+  type: DNSChaos
+  dnsChaos:
+    selector:
+      namespaces:
+        - workticket
+      labelSelectors:
+        app: workticket
+    mode: all
+    action: error
+    patterns:
+      - api.stripe.com
+      - api.resend.com
+    duration: 2m

@@ -1,0 +1,92 @@
+# Loki Helm values
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 2
+  storage:
+    type: s3
+    bucketNames:
+      chunks: workticket-prod-loki-chunks
+      ruler: workticket-prod-loki-ruler
+      admin: workticket-prod-loki-admin
+    s3:
+      region: us-east-1
+      sse_encryption: true
+      insecure: false
+      iam_role: arn:aws:iam::ACCOUNT_ID:role/workticket-prod-backend
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        index:
+          prefix: loki_index_
+          period: 24h
+        object_store: s3
+        schema: v13
+  pattern_ingester:
+    enabled: true
+  limits_config:
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+    max_query_series: 10000
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+  compactor:
+    retention_enabled: true
+    retention:
+      delete_delay: 2h
+  ruler:
+    storage:
+      type: s3
+    alertmanager_url: http://alertmanager-operated.monitoring:9093
+    ring:
+      kvstore:
+        store: memberlist
+
+deploymentMode: SingleBinary
+
+singleBinary:
+  replicas: 2
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  persistence:
+    size: 10Gi
+
+read:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+write:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+backend:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+gateway:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+
+monitoring:
+  dashboards:
+    enabled: true
+  alerts:
+    enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+  selfMonitoring:
+    enabled: true
+    tenant:
+      name: loki

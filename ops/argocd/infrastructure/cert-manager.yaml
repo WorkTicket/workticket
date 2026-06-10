@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: workticket
+  source:
+    repoURL: https://charts.jetstack.io
+    targetRevision: v1.16.0
+    chart: cert-manager
+    helm:
+      values: |
+        installCRDs: true
+        podSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          fsGroup: 1001
+        webhook:
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            fsGroup: 1001
+        cainjector:
+          podSecurityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            fsGroup: 1001
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-resources
+  namespace: argocd
+spec:
+  project: workticket
+  source:
+    repoURL: https://github.com/WorkTicket/workticket
+    targetRevision: main
+    path: ops/k8s/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

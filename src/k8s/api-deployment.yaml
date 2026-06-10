@@ -10,6 +10,8 @@
 # =============================================================================
 
 # --- Namespace ---
+# NOTE: The namespace is managed by kustomization.yaml.
+# This is the effective runtime definition for kubectl apply -f without kustomize.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -19,6 +21,9 @@ metadata:
     environment: production
 ---
 # --- ConfigMap ---
+# NOTE: This ConfigMap is managed by kustomization.yaml configMapGenerator.
+# The inline definition here is the effective runtime configuration.
+# Keep it in sync with kustomization.yaml literal overrides.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -201,6 +206,26 @@ spec:
                 secretKeyRef:
                   name: workticket-secrets
                   key: ALLOWED_HOSTS
+            - name: DATABASE_READONLY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: workticket-secrets
+                  key: DATABASE_READONLY_URL
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: workticket-secrets
+                  key: SENTRY_DSN
+            - name: POSTHOG_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: workticket-secrets
+                  key: POSTHOG_API_KEY
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: workticket-secrets
+                  key: RESEND_API_KEY
           resources:
             requests:
               cpu: 500m

@@ -1,0 +1,197 @@
+# kube-prometheus-stack Helm values
+# Installs: Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics
+
+prometheus:
+  prometheusSpec:
+    retention: 30d
+    retentionSize: 50GB
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    replicas: 2
+    podAntiAffinity: preferred
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+      fsGroup: 1001
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 8Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 100Gi
+    ruleNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    additionalScrapeConfigs:
+      - job_name: workticket-backend
+        metrics_path: /admin/metrics
+        authorization:
+          type: Bearer
+          credentials:
+            name: workticket-secrets
+            key: METRICS_ACCESS_TOKEN
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: workticket
+            action: keep
+          - source_labels: [__address__]
+            action: replace
+            regex: ([^:]+)(?::\d+)?
+            replacement: $1:8000
+            target_label: __address__
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    replicas: 2
+    retention: 120h
+    podAntiAffinity: preferred
+    resources:
+      requests:
+        cpu: 50m
+        memory: 100Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+  config:
+    global:
+      resolve_timeout: 5m
+      slack_api_url: ""
+      pagerduty_url: https://events.pagerduty.com/v2/enqueue
+    route:
+      group_by: ["namespace", "severity"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: "default"
+      routes:
+        - receiver: "critical"
+          match:
+            severity: critical
+          repeat_interval: 1h
+        - receiver: "warning"
+          match:
+            severity: warning
+          repeat_interval: 4h
+    receivers:
+      - name: "default"
+        slack_configs:
+          - channel: "#alerts"
+            title: '{{ template "slack.title" . }}'
+            text: '{{ template "slack.text" . }}'
+      - name: "critical"
+        pagerduty_configs:
+          - routing_key: ""
+            severity: critical
+            description: '{{ template "pagerduty.description" . }}'
+        slack_configs:
+          - channel: "#critical"
+            title: '🚨 [CRITICAL] {{ template "slack.title" . }}'
+            text: '{{ template "slack.text" . }}'
+      - name: "warning"
+        slack_configs:
+          - channel: "#alerts"
+            title: '⚠️ [WARNING] {{ template "slack.title" . }}'
+            text: '{{ template "slack.text" . }}'
+    templates:
+      - "/etc/alertmanager/config/*.tmpl"
+
+grafana:
+  enabled: true
+  admin:
+    existingSecret: grafana-admin-secret
+    userKey: admin-user
+    passwordKey: admin-password
+  defaultDashboardsEnabled: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: workticket
+          orgId: 1
+          folder: WorkTicket
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/workticket
+  dashboardsConfigMaps:
+    workticket: workticket-grafana-dashboards
+  persistence:
+    enabled: true
+    size: 10Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 512Mi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.workticket.app
+    tls:
+      - hosts:
+          - grafana.workticket.app
+        secretName: grafana-tls
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-operated.monitoring:9090
+          access: proxy
+          isDefault: true
+        - name: Loki
+          type: loki
+          url: http://loki.monitoring:3100
+          access: proxy
+        - name: Tempo
+          type: tempo
+          url: http://tempo.monitoring:3200
+          access: proxy
+          jsonData:
+            tracesToLogs:
+              datasourceUid: loki
+              tags: ["service.name", "service.namespace"]
+              mappedTags: [{ key: "service.instance.id", value: "instance" }]
+              mapTagNamesEnabled: true
+              spanStartTimeShift: -1h
+              spanEndTimeShift: 1h
+            serviceMap:
+              datasourceUid: prometheus
+            nodeGraph:
+              enabled: true
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      folder: /tmp/dashboards
+    notifiers:
+      enabled: false
+    datasources:
+      enabled: true
