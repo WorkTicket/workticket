@@ -611,9 +611,9 @@ async def healthz():
     try:
         from celery_app import celery_app as _celery_app
 
-        inspector = _celery_app.control.inspect()
+        inspector = _celery_app.control.inspect(timeout=2)
         workers = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(None, inspector.ping, 2),
+            asyncio.get_event_loop().run_in_executor(None, inspector.ping),
             timeout=3,
         )
         celery_ok = workers is not None and len(workers) > 0
@@ -767,9 +767,9 @@ async def readiness():
     try:
         from celery_app import celery_app as _celery
 
-        inspector = _celery.control.inspect()
+        inspector = _celery.control.inspect(timeout=2)
         workers = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(None, inspector.ping, 2),
+            asyncio.get_event_loop().run_in_executor(None, inspector.ping),
             timeout=3,
         )
         if not workers or len(workers) == 0:
@@ -950,8 +950,11 @@ async def health():
     try:
         from celery_app import celery_app as _celery
 
-        inspector = _celery.control.inspect()
-        workers = inspector.ping(timeout=2)
+        inspector = _celery.control.inspect(timeout=2)
+        workers = await asyncio.wait_for(
+            asyncio.get_event_loop().run_in_executor(None, inspector.ping),
+            timeout=3,
+        )
         celery_healthy = workers is not None and len(workers) > 0
     except Exception as _e:
         logger.debug("Health endpoint Celery check failed: %s", _e)

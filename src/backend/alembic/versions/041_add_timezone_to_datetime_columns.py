@@ -13,6 +13,7 @@ Create Date: 2026-06-09
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = "041"
@@ -21,7 +22,39 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _column_exists(table: str, column: str) -> bool:
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = :t AND column_name = :c"
+        ),
+        {"t": table, "c": column},
+    )
+    return result.scalar() > 0
+
+
+def _is_partition_key(table: str, column: str) -> bool:
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text(
+            "SELECT COUNT(*) FROM pg_partitioned_table pt "
+            "JOIN pg_class c ON c.oid = pt.partrelid "
+            "JOIN pg_attribute a ON a.attrelid = pt.partrelid AND a.attnum = ANY(pt.partattrs) "
+            "WHERE c.relname = :t AND a.attname = :c"
+        ),
+        {"t": table, "c": column},
+    )
+    return result.scalar() > 0
+
+
 def _alter_tz(table: str, column: str) -> None:
+    if _is_partition_key(table, column):
+        return
+    if not _column_exists(table, column):
+        op.execute(
+            f'ALTER TABLE "{table}" ADD COLUMN "{column}" timestamp without time zone'
+        )
     op.execute(
         f'ALTER TABLE "{table}" ALTER COLUMN "{column}" '
         f"TYPE timestamp with time zone "
