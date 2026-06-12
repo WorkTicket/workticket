@@ -77,7 +77,7 @@ async def list_jobs(
 ):
     query = (
         select(Job)
-        .options(selectinload(Job.technician, Job.media))
+        .options(selectinload(Job.technician), selectinload(Job.media))
         .where(Job.company_id == current_user.company_id, Job.is_deleted.is_(False))
     )
     if status:

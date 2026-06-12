@@ -49,7 +49,7 @@ async def test_get_job_not_found(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_job_status(client: AsyncClient):
     customer_resp = await client.post(
-        "/jobs/customers",
+        "/api/v1/jobs/customers",
         json={
             "name": "Update Test Customer",
         },
@@ -85,7 +85,7 @@ async def test_create_and_list_customers(client: AsyncClient):
     )
     assert resp.status_code == 201
 
-    list_resp = await client.get("/jobs/customers")
+    list_resp = await client.get("/api/v1/jobs/customers")
     assert list_resp.status_code == 200
     data = list_resp.json()
     assert data["total"] >= 1

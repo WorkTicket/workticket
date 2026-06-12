@@ -7,7 +7,7 @@ from app.auth.dependencies import ClerkIdentity, get_clerk_identity
 from app.database import get_db
 from app.jobs.models import User
 from app.main import app
-from tests.conftest import TestSessionLocal, override_get_db
+from tests.conftest import override_get_db
 
 
 @pytest.mark.asyncio
@@ -22,7 +22,7 @@ async def test_get_me_authenticated(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_get_me_unauthenticated(client: AsyncClient):
-    client.app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
     response = await client.get("/api/v1/auth/me")
     assert response.status_code == 403
@@ -61,6 +61,8 @@ async def test_registration_status_registered(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_register_new_user(client: AsyncClient):
+    from tests.conftest import TestSessionLocal
+
     new_user_id = f"clerk-register-{uuid.uuid4().hex[:8]}"
     app.dependency_overrides[get_clerk_identity] = _clerk_identity_override(new_user_id)
     app.dependency_overrides[get_db] = override_get_db

@@ -117,7 +117,7 @@ async def change_plan(
         stripe_sub = await asyncio.to_thread(lambda: stripe.Subscription.retrieve(company.stripe_subscription_id))  # type: ignore[attr-defined]
         await stripe_circuit.record_success()
         await set_cache_from_stripe_object(stripe_sub)
-    except stripe.error.StripeError as e:
+    except stripe.StripeError as e:
         await stripe_circuit.record_failure()
         cached = await get_cached_subscription(company.stripe_subscription_id)  # type: ignore[attr-defined]
         if cached:

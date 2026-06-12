@@ -27,13 +27,13 @@ def _sign_payload(payload: dict, secret: str, timestamp: int = None) -> str:
 
 @pytest.mark.asyncio
 async def test_valid_signature_accepted(client: AsyncClient, monkeypatch):
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
 
     test_secret = "whsec_test_valid_signature_key_32chars"
-    settings = billing_router.settings
+    settings = invoice_routes.settings
     original_secret = settings.stripe_webhook_secret
 
     try:
@@ -61,13 +61,13 @@ async def test_valid_signature_accepted(client: AsyncClient, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_invalid_signature_rejected(client: AsyncClient, monkeypatch):
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
 
     test_secret = "whsec_real_secret_for_testing_ok"
-    settings = billing_router.settings
+    settings = invoice_routes.settings
     original = settings.stripe_webhook_secret
 
     try:
@@ -95,13 +95,13 @@ async def test_invalid_signature_rejected(client: AsyncClient, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_tampered_payload_with_valid_signature_rejected(client: AsyncClient, monkeypatch):
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
 
     test_secret = "whsec_original_secret_key_1234"
-    settings = billing_router.settings
+    settings = invoice_routes.settings
     original = settings.stripe_webhook_secret
 
     try:

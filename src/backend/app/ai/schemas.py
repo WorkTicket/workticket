@@ -99,6 +99,7 @@ class AIOutputFeedbackRequest(BaseModel):
 
 
 class AIOutputResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
     job_id: UUID
     status: str
     output: AIOutputSchema | None = None

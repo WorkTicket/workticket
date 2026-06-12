@@ -819,7 +819,7 @@ _ws_auth_cache_lock = asyncio.Lock()
 
 async def _get_cached_ws_auth(user_id: str) -> dict | None:
     async with _ws_auth_cache_lock:
-        return _ws_auth_cache.get(user_id)
+        return _ws_auth_cache.get(user_id)  # type: ignore[no-any-return]
 
 
 async def _set_cached_ws_auth(user_id: str, data: dict, ttl: int = 120):

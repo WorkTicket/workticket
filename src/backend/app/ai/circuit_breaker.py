@@ -84,6 +84,10 @@ class CircuitBreaker:
     def state(self) -> CircuitState:
         return self._state
 
+    @property
+    def failure_count(self) -> int:
+        return self._failure_count
+
     async def _redis(self):
         try:
             from app.ai.rate_limiter import _get_redis
@@ -102,8 +106,8 @@ class CircuitBreaker:
         r = await self._redis()
         if r:
             try:
-                state = await r.get(f"{self._redis_prefix}:open")
-                return state != b"1"  # type: ignore[no-any-return]
+                state = await r.hget(f"{self._redis_prefix}", "open")
+                return state != "1"  # type: ignore[no-any-return]
             except Exception:
                 pass  # nosec B110
         async with self._lock:
@@ -148,7 +152,11 @@ class CircuitBreaker:
         r = await self._redis()
         if r:
             with contextlib.suppress(Exception):
-                await r.delete(f"{self._redis_prefix}:open")
+                await r.hdel(f"{self._redis_prefix}", "open")
+                await r.hdel(f"{self._redis_prefix}", "last_failure")
+                await r.hdel(f"{self._redis_prefix}", "level")
+                await r.hdel(f"{self._redis_prefix}", "half_open")
+                await r.hdel(f"{self._redis_prefix}", "half_open_probed")
 
     async def record_failure(self):
         async with self._lock:

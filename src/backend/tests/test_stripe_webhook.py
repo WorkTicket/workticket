@@ -56,9 +56,9 @@ async def test_stripe_webhook_replay_detection(stripe_event_payload):
     old_ts = int(time.time()) - 600
     stripe_event_payload["created"] = old_ts
 
-    from app import billing
+    from app.billing import invoice_routes
 
-    billing._validate_stripe_ip = AsyncMock()
+    invoice_routes._validate_stripe_ip = AsyncMock()
 
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.post(

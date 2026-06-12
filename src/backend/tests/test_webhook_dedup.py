@@ -13,9 +13,9 @@ def mock_redis():
 @pytest.fixture(autouse=True)
 def _patch_deps():
     with (
-        patch("app.billing.router._check_global_webhook_rate", AsyncMock()),
-        patch("app.billing.router._validate_stripe_ip", AsyncMock()),
-        patch("app.billing.router._check_webhook_rate", AsyncMock()),
+        patch("app.billing.invoice_routes._check_global_webhook_rate", AsyncMock()),
+        patch("app.billing.invoice_routes._validate_stripe_ip", AsyncMock()),
+        patch("app.billing.invoice_routes._check_webhook_rate", AsyncMock()),
     ):
         yield
 
@@ -25,8 +25,8 @@ async def test_duplicate_checkout_session_completed_dedup(client, mock_redis):
     """Duplicate checkout.session.completed events are deduplicated."""
     from sqlalchemy import delete
 
+    from app.billing.invoice_routes import _process_webhook
     from app.billing.models import StripeWebhookEvent
-    from app.billing.router import _process_webhook
     from app.database import get_db
 
     payload = {
@@ -47,8 +47,8 @@ async def test_duplicate_checkout_session_completed_dedup(client, mock_redis):
     mock_request.headers.get = lambda k, d=None: {"content-length": "500", "stripe-signature": "test_sig"}.get(k, d)
 
     async with (
-        patch("app.billing.router.stripe.Webhook.construct_event", return_value=payload),
-        patch("app.billing.router._get_redis", return_value=mock_redis),
+        patch("app.billing.invoice_routes.stripe.Webhook.construct_event", return_value=payload),
+        patch("app.billing.invoice_routes._get_redis", return_value=mock_redis),
     ):
         async for db in get_db():
             await db.execute(delete(StripeWebhookEvent))
@@ -66,8 +66,8 @@ async def test_duplicate_invoice_payment_failed_dedup(client, mock_redis):
     """Duplicate invoice.payment_failed events are deduplicated."""
     from sqlalchemy import delete
 
+    from app.billing.invoice_routes import _process_webhook
     from app.billing.models import StripeWebhookEvent
-    from app.billing.router import _process_webhook
     from app.database import get_db
 
     payload = {
@@ -88,8 +88,8 @@ async def test_duplicate_invoice_payment_failed_dedup(client, mock_redis):
     mock_request.headers.get = lambda k, d=None: {"content-length": "500", "stripe-signature": "test_sig"}.get(k, d)
 
     async with (
-        patch("app.billing.router.stripe.Webhook.construct_event", return_value=payload),
-        patch("app.billing.router._get_redis", return_value=mock_redis),
+        patch("app.billing.invoice_routes.stripe.Webhook.construct_event", return_value=payload),
+        patch("app.billing.invoice_routes._get_redis", return_value=mock_redis),
     ):
         async for db in get_db():
             await db.execute(delete(StripeWebhookEvent))
@@ -107,8 +107,8 @@ async def test_duplicate_customer_subscription_deleted_dedup(client, mock_redis)
     """Duplicate customer.subscription.deleted events are deduplicated."""
     from sqlalchemy import delete
 
+    from app.billing.invoice_routes import _process_webhook
     from app.billing.models import StripeWebhookEvent
-    from app.billing.router import _process_webhook
     from app.database import get_db
 
     payload = {
@@ -128,8 +128,8 @@ async def test_duplicate_customer_subscription_deleted_dedup(client, mock_redis)
     mock_request.headers.get = lambda k, d=None: {"content-length": "500", "stripe-signature": "test_sig"}.get(k, d)
 
     async with (
-        patch("app.billing.router.stripe.Webhook.construct_event", return_value=payload),
-        patch("app.billing.router._get_redis", return_value=mock_redis),
+        patch("app.billing.invoice_routes.stripe.Webhook.construct_event", return_value=payload),
+        patch("app.billing.invoice_routes._get_redis", return_value=mock_redis),
     ):
         async for db in get_db():
             await db.execute(delete(StripeWebhookEvent))
@@ -147,8 +147,8 @@ async def test_different_event_types_same_id_not_dedup(client, mock_redis):
     """Different event types with same ID should NOT be deduplicated."""
     from sqlalchemy import delete
 
+    from app.billing.invoice_routes import _process_webhook
     from app.billing.models import StripeWebhookEvent
-    from app.billing.router import _process_webhook
     from app.database import get_db
 
     shared_id = "evt_test_shared_id_1"
@@ -185,16 +185,16 @@ async def test_different_event_types_same_id_not_dedup(client, mock_redis):
     mock_request = MagicMock()
     mock_request.headers.get = lambda k, d=None: {"content-length": "500", "stripe-signature": "test_sig"}.get(k, d)
 
-    async with patch("app.billing.router._get_redis", return_value=mock_redis):
+    async with patch("app.billing.invoice_routes._get_redis", return_value=mock_redis):
         async for db in get_db():
             await db.execute(delete(StripeWebhookEvent))
             await db.commit()
 
-            with patch("app.billing.router.stripe.Webhook.construct_event", return_value=payload1):
+            with patch("app.billing.invoice_routes.stripe.Webhook.construct_event", return_value=payload1):
                 result1 = await _process_webhook(mock_request, db, "13.248.128.1")
                 assert result1.get("deduplicated") is not True, "First event type should not be dedup"
 
-            with patch("app.billing.router.stripe.Webhook.construct_event", return_value=payload2):
+            with patch("app.billing.invoice_routes.stripe.Webhook.construct_event", return_value=payload2):
                 result2 = await _process_webhook(mock_request, db, "13.248.128.1")
                 assert result2.get("deduplicated") is not True, "Different event type should not be dedup"
 
@@ -204,8 +204,8 @@ async def test_redis_dedup_hit_returns_early(client, mock_redis):
     """When Redis already has the dedup key, it returns early."""
     from sqlalchemy import delete
 
+    from app.billing.invoice_routes import _process_webhook
     from app.billing.models import StripeWebhookEvent
-    from app.billing.router import _process_webhook
     from app.database import get_db
 
     payload = {
@@ -229,8 +229,8 @@ async def test_redis_dedup_hit_returns_early(client, mock_redis):
     mock_redis_with_hit.set.return_value = False
 
     async with (
-        patch("app.billing.router.stripe.Webhook.construct_event", return_value=payload),
-        patch("app.billing.router._get_redis", return_value=mock_redis_with_hit),
+        patch("app.billing.invoice_routes.stripe.Webhook.construct_event", return_value=payload),
+        patch("app.billing.invoice_routes._get_redis", return_value=mock_redis_with_hit),
     ):
         async for db in get_db():
             await db.execute(delete(StripeWebhookEvent))

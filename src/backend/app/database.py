@@ -1144,7 +1144,8 @@ def _register_query_monitoring():
             normalized = re.sub(r"\d+", "N", normalized)
             query_hash = hashlib.sha256(normalized.encode()).hexdigest()[:12]
             counter = _n1_query_counter.get()  # type: ignore[index]
-            counter[query_hash] += 1  # type: ignore[index]
+            if counter is not None:
+                counter[query_hash] += 1  # type: ignore[index]
 
         # Slow query logging (> 500ms)
         if duration_ms > 500:

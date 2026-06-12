@@ -1,3 +1,5 @@
+import pytest
+
 from app.ai.audit import _AUDIT_SIGNING_KEY, _hash_payload, _sign_audit_event
 
 
@@ -8,6 +10,8 @@ class TestAuditSigning:
         assert sig1 == sig2
 
     def test_different_payload_different_signature(self):
+        if not _AUDIT_SIGNING_KEY:
+            pytest.skip("AUDIT_SIGNING_KEY not set")
         sig1 = _sign_audit_event("event-1", "2026-01-01T00:00:00", "ai_gateway", "abc123")
         sig2 = _sign_audit_event("event-1", "2026-01-01T00:00:00", "ai_gateway", "def456")
         assert sig1 != sig2

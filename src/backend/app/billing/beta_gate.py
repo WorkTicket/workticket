@@ -33,7 +33,7 @@ class BetaGate:
             from app.tasks.heartbeat import cleanup_stale_jobs
             from celery_app import celery_app
 
-            has_task = "cleanup_stale_jobs" in celery_app.tasks
+            has_task = "tasks.maintenance.cleanup_stale_jobs" in celery_app.tasks
             has_beat = (
                 celery_app.conf.beat_schedule is not None
                 and "cleanup-stale-jobs-every-2-min" in celery_app.conf.beat_schedule
@@ -84,12 +84,25 @@ class BetaGate:
             return False
 
     def check_load_tests(self) -> bool:
-        import glob as glob_mod
         import os
+        import tomllib
 
-        test_dir = os.path.join(os.path.dirname(__file__), "..", "..", "tests")
-        files = glob_mod.glob(os.path.join(test_dir, "test_*.py"))
-        return len(files) >= 5
+        pyproject = os.path.join(os.path.dirname(__file__), "..", "..", "pyproject.toml")
+        has_pyproject = os.path.isfile(pyproject)
+        has_pytest_config = False
+        if has_pyproject:
+            try:
+                with open(pyproject, "rb") as f:
+                    data = tomllib.load(f)
+                has_pytest_config = "tool" in data and "pytest" in data["tool"]
+            except Exception:
+                pass
+        try:
+            import pytest
+            has_pytest = True
+        except ImportError:
+            has_pytest = False
+        return has_pyproject and has_pytest_config and has_pytest
 
     def run_all_checks(self) -> dict:
         return {

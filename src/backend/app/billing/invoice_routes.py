@@ -221,7 +221,7 @@ async def create_checkout_session(
         )
         await stripe_circuit.record_success()
         return {"url": session.url}
-    except stripe.error.StripeError as e:
+    except stripe.StripeError as e:
         await stripe_circuit.record_failure()
         logger.error("Stripe checkout failed: %s", e)
         raise HTTPException(status_code=400, detail="Failed to create checkout session") from e
@@ -286,7 +286,7 @@ async def _process_webhook(
         event = stripe.Webhook.construct_event(payload, sig_header, settings.stripe_webhook_secret)
     except ValueError as e:
         raise HTTPException(status_code=400, detail="Invalid payload") from e
-    except stripe.error.SignatureVerificationError as e:
+    except stripe.SignatureVerificationError as e:
         raise HTTPException(status_code=400, detail="Invalid signature") from e
 
     event_id = event.get("id", "")
@@ -420,7 +420,7 @@ async def _process_webhook(
                     extra={"event_id": event_id, "event_type": event_type},
                 )
                 raise HTTPException(status_code=400, detail="Subscription does not belong to the specified customer")
-        except stripe.error.StripeError as e:
+        except stripe.StripeError as e:
             await stripe_circuit.record_failure()
             logger.error("Failed to verify Stripe subscription %s: %s", subscription_id, e)
             raise HTTPException(status_code=502, detail="Failed to verify subscription with Stripe") from e

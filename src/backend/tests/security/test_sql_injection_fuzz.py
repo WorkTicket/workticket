@@ -8,6 +8,7 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from app.main import app
 
 SQL_INJECTION_PAYLOADS = [
     "' OR '1'='1",
@@ -80,7 +81,7 @@ async def test_raw_sql_tenant_scoping_maintained(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_user
+    app.dependency_overrides[get_current_user] = lambda: other_user
 
     resp = await client.get("/api/v1/jobs")
     assert resp.status_code == 200

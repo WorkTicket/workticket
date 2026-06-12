@@ -54,6 +54,23 @@ _route_overrides: dict[str, tuple[float, int]] = {
 _ESTIMATED_WORKERS = max(1, int(os.getenv("ESTIMATED_REPLICAS", "5")))
 
 
+def _get_limits(path: str) -> tuple[float, int]:
+    # Match most specific prefix first (longest match wins)
+    best_prefix = ""
+    best_limits = (10.0, 10)
+    for prefix, (rate, burst) in _route_overrides.items():
+        if path.startswith(prefix) and len(prefix) > len(best_prefix):
+            best_prefix = prefix
+            best_limits = (rate, burst)
+    return best_limits
+
+
+def _get_strict_limits(rate: float, burst: int) -> tuple[float, int]:
+    strict_rate = max(rate / _ESTIMATED_WORKERS, 1.0)
+    strict_burst = max(int(burst / _ESTIMATED_WORKERS), 2)
+    return strict_rate, strict_burst
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Rate limiting middleware with Redis primary and local fallback.
 
@@ -74,24 +91,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self._local_limiter = local_limiter
         return self._local_limiter
 
-    def _get_limits(self, path: str) -> tuple[float, int]:
-        for prefix, (rate, burst) in _route_overrides.items():
-            if path.startswith(prefix):
-                return rate, burst
-        # H-2 FIX: Reduced default from 100/s to 10/s with burst of 10
-        return 10.0, 10
-
-    def _get_strict_limits(self, rate: float, burst: int) -> tuple[float, int]:
-        strict_rate = max(rate / _ESTIMATED_WORKERS, 1.0)
-        strict_burst = max(int(burst / _ESTIMATED_WORKERS), 2)
-        return strict_rate, strict_burst
-
     async def dispatch(self, request: Request, call_next):
         user_id = getattr(request.state, "user_id", None) or request.headers.get("X-User-ID", "")
         company_id = getattr(request.state, "company_id", None) or request.headers.get("X-Company-ID", "")
         path = request.url.path
 
-        rate, burst = self._get_limits(path)
+        rate, burst = _get_limits(path)
 
         if rate != float("inf"):
             allowed, reason = await self._check_rate(path, user_id, company_id, rate, burst)
@@ -146,7 +151,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if not redis_allowed:
                 return False, redis_reason
         except Exception:
-            strict_rate, strict_burst = self._get_strict_limits(rate, burst)
+            strict_rate, strict_burst = _get_strict_limits(rate, burst)
             if not local._get_bucket("global", strict_rate, strict_burst).consume():
                 return False, "global rate limit exceeded"
             if company_id and not local._get_bucket(f"tenant:{company_id}", strict_rate, strict_burst).consume():

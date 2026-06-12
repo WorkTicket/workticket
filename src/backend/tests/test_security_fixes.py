@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -12,21 +13,44 @@ async def test_csv_injection_formula_chars_stripped(client: AsyncClient, monkeyp
     """H-5: CSV export should sanitize formula-injecting characters."""
     from sqlalchemy import select
 
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
     from app.database import AsyncSessionLocal
-    from app.jobs.models import Invoice
+    from app.jobs.models import Customer, Job, Invoice
 
-    billing_router._check_webhook_rate = AsyncMock()
+    invoice_routes._check_webhook_rate = AsyncMock()
 
     test_invoice_id = uuid.uuid4()
     async with AsyncSessionLocal() as db:
+        customer_id = uuid.uuid4()
+        customer = Customer(
+            id=customer_id,
+            company_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            name="Test Customer",
+            address="123 Test St",
+        )
+        db.add(customer)
+        await db.flush()
+
+        job_id = uuid.uuid4()
+        job = Job(
+            id=job_id,
+            company_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+            customer_id=customer_id,
+            technician_id="test-user-id",
+            description="Test job",
+            address="123 Test St",
+            scheduled_time=datetime.now(UTC),
+        )
+        db.add(job)
+        await db.flush()
+
         existing = await db.execute(select(Invoice).where(Invoice.id == test_invoice_id))
         if not existing.scalar_one_or_none():
             invoice = Invoice(
                 id=test_invoice_id,
                 company_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
-                job_id=uuid.uuid4(),
-                customer_id=uuid.uuid4(),
+                job_id=job_id,
+                customer_id=customer_id,
                 line_items={"test": "item"},
                 subtotal=100.0,
                 tax=10.0,
@@ -47,11 +71,11 @@ async def test_csv_injection_formula_chars_stripped(client: AsyncClient, monkeyp
 @pytest.mark.asyncio
 async def test_csv_injection_formula_prefix_added(client: AsyncClient, monkeypatch):
     """H-5: Values starting with formula chars should be prefixed with '."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    billing_router._check_webhook_rate = AsyncMock()
+    invoice_routes._check_webhook_rate = AsyncMock()
 
-    from app.billing.router import _sanitize_csv
+    from app.billing.invoice_routes import _sanitize_csv
 
     assert _sanitize_csv("=SUM(A1:A10)").startswith("'")
     assert _sanitize_csv("+MACRO()").startswith("'")
@@ -66,7 +90,7 @@ async def test_csv_injection_formula_prefix_added(client: AsyncClient, monkeypat
 @pytest.mark.asyncio
 async def test_csv_injection_control_chars_stripped():
     """H-5: Control characters should be replaced with spaces."""
-    from app.billing.router import _sanitize_csv
+    from app.billing.invoice_routes import _sanitize_csv
 
     result = _sanitize_csv("hello\x00world\x01test")
     assert "\x00" not in result
@@ -166,40 +190,39 @@ async def test_jwt_audience_required_in_production():
     """H-1: clerk_jwt_audience must be required in production."""
     from app.config import Settings
 
-    invalid = Settings(
-        _env_file=None,
-        debug=False,
-        database_url="postgresql://test",
-        redis_url="redis://test",
-        redis_password="test",
-        clerk_secret_key="test",
-        clerk_publishable_key="test",
-        clerk_jwt_issuer="https://clerk.test",
-        clerk_jwt_audience="",
-        ollama_base_url="http://test",
-        whisper_service_url="http://test",
-        r2_endpoint_url="http://test",
-        r2_access_key_id="test",
-        r2_secret_access_key="test",
-        r2_bucket_name="test",
-        stripe_secret_key="test",
-        stripe_webhook_secret="test",
-        stripe_price_id="test",
-        sentry_dsn="test",
-        metrics_access_token="test",
-        posthog_api_key="test",
-        posthog_host="http://test",
-        twilio_account_sid="test",
-        twilio_auth_token="test",
-        twilio_from_number="test",
-        resend_api_key="test",
-        celery_task_signing_key="test",
-        allowed_hosts="test.com",
-        app_base_url="http://test.com",
-        cors_origins="http://test.com",
-    )
     with pytest.raises(ValueError, match="clerk_jwt_audience"):
-        invalid.check_production_settings()
+        Settings(
+            _env_file=None,
+            debug=False,
+            database_url="postgresql://test",
+            redis_url="redis://test",
+            redis_password="test",
+            clerk_secret_key="test",
+            clerk_publishable_key="test",
+            clerk_jwt_issuer="https://clerk.test",
+            clerk_jwt_audience="",
+            ollama_base_url="http://test",
+            whisper_service_url="http://test",
+            r2_endpoint_url="http://test",
+            r2_access_key_id="test",
+            r2_secret_access_key="test",
+            r2_bucket_name="test",
+            stripe_secret_key="test",
+            stripe_webhook_secret="test",
+            stripe_price_id="test",
+            sentry_dsn="test",
+            metrics_access_token="test",
+            posthog_api_key="test",
+            posthog_host="http://test",
+            twilio_account_sid="test",
+            twilio_auth_token="test",
+            twilio_from_number="test",
+            resend_api_key="test",
+            celery_task_signing_key="test",
+            allowed_hosts="test.com",
+            app_base_url="http://test.com",
+            cors_origins="http://test.com",
+        )
 
 
 @pytest.mark.asyncio

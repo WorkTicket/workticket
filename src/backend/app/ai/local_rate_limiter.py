@@ -87,5 +87,8 @@ class LocalRateLimiter:
         for k in stale:
             del self._buckets[k]
 
+    def reset(self):
+        self._buckets.clear()
+
 
 local_limiter = LocalRateLimiter()

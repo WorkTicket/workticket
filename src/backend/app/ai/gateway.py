@@ -1,5 +1,4 @@
 import asyncio
-import html
 import logging
 import os
 import re
@@ -670,18 +669,20 @@ def _sanitize_output_text(text: str, input_text: str = "") -> str:
     for phrase in _DISALLOWED_OUTPUT_PATTERNS:
         if phrase in lower:
             logger.warning("Output sanitized: contained disallowed phrase '%s'", phrase)
-            return html.escape(text[:_max_output_length]) if text.strip() else text
+            return "[sanitized]"
     for pattern in _LANGUAGE_PATTERNS:
         if re.search(pattern, lower):
             logger.warning("Output sanitized: contained dangerous HTML pattern")
-            return html.escape(text[:_max_output_length]) if text.strip() else text
+            return "[sanitized]"
+    if re.search(r"sk_(live|test)_[a-zA-Z0-9]+", lower):
+        logger.warning("Output sanitized: contained API key pattern")
+        return "[sanitized]"
     risk = _semantic_risk_score(normalized)
     if risk >= _INJECTION_SCORE_THRESHOLD:
         logger.warning(
             "Output sanitized: semantic risk score %d exceeds threshold %d", risk, _INJECTION_SCORE_THRESHOLD
         )
-        return html.escape(text[:_max_output_length]) if text.strip() else text
-    # H-4 FIX: Detect novel injection patterns via shingle similarity
+        return "[sanitized]"
     shingle_score = _detect_shingle_injection(normalized)
     if shingle_score >= _SHINGLE_SIMILARITY_THRESHOLD:
         logger.warning(
@@ -689,13 +690,12 @@ def _sanitize_output_text(text: str, input_text: str = "") -> str:
             shingle_score,
             _SHINGLE_SIMILARITY_THRESHOLD,
         )
-        return html.escape(text[:_max_output_length]) if text.strip() else text
-    # H-4 FIX: Detect prompt leakage (output contains input prompt fragments)
+        return "[sanitized]"
     if input_text:
         leakage = _prompt_leakage_score(normalized, input_text)
         if leakage > 0.5:
             logger.warning("Output sanitized: prompt leakage score %.3f", leakage)
-            return html.escape(text[:_max_output_length]) if text.strip() else text
+            return "[sanitized]"
     # H-7 FIX: Only HTML-escape when injection is detected. For clean content
     # that passes all validation checks, return raw text (truncated to limit).
     # The middleware sanitization layer already handles XSS prevention.
@@ -744,22 +744,27 @@ _INSTRUCTION_OVERRIDE_PATTERNS = [
     r"\bno\s+(restrictions|rules|limits|boundaries)\b",
     r"\bunfiltered\b",
     r"\b(new|updated)\s+instructions?\b",
+    r"\bcompany_id\b",
+    r"\bsecret\b",
 ]
 
 
 def _sanitize_input_text(text: str) -> str:
     if not text:
         return text
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(text))
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", str(text))
     text = _normalize_text(text)
+    lower = text.lower()
+    if "system prompt" in lower:
+        logger.warning("Input sanitized: contains 'system prompt'")
+        return "[sanitized]"
     for token in _LLM_SPECIAL_TOKENS:
         text = text.replace(token, "")
     lower = text.lower()
     for pattern in _INSTRUCTION_OVERRIDE_PATTERNS:
         if re.search(pattern, lower):
             logger.warning("Input sanitized: contained instruction override pattern: %s", pattern)
-            text = re.sub(pattern, "[redacted]", text, flags=re.IGNORECASE)
-    # HIGH-4 FIX: Escape XML/HTML special characters to prevent tag injection
+            return "[sanitized]"
     text = text.replace("&", "&amp;")
     text = text.replace("<", "&lt;")
     text = text.replace(">", "&gt;")

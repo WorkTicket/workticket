@@ -64,11 +64,10 @@ services:
       sh -c "
       pip install -r requirements.txt &&
       pip install pytest pytest-asyncio httpx &&
-      pytest --maxfail=10 --timeout=120 -v
+      pytest --maxfail=10 -v
       "
     volumes:
-      - ./backend/tests:/app/tests:ro
-      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+      - ./backend:/app:ro
 
 networks:
   backend-db:

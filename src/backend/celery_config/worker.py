@@ -70,6 +70,7 @@ celery_app.conf.update(
     beat_schedule=get_effective_beat_schedule(),
     beat_pidfile=None,
     beat_sync_every=0,
+    broker_connection_retry_on_startup=True,
 )
 
 # V2-FIX: Initialize Celery OTel instrumentation after app is created

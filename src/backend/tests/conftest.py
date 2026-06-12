@@ -14,7 +14,7 @@ from app.main import app
 from app.notifications.models import PushToken  # noqa: F401
 from app.tracing.models import ExecutionTrace  # noqa: F401
 
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@postgres:5432/workticket_test_beta"
+TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@postgres:5432/workticket_test"
 
 _test_engine = None
 TestSessionLocal = None
@@ -62,6 +62,14 @@ async def setup_db():
     _ensure_test_engine()
     async with _test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.fixture(autouse=True)
+def _reset_local_rate_limiter():
+    from app.ai.local_rate_limiter import local_limiter
+
+    local_limiter.reset()
+    yield
 
 
 @pytest.fixture(autouse=True)

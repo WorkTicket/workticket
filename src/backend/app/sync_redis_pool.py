@@ -15,13 +15,25 @@ class SyncRedisPool:
     """
 
     def __init__(self):
-        self._pool: object | None = None
+        self.__pool: object | None = None
         self._redis_url: str | None = None
         self._max_connections = int(os.getenv("REDIS_POOL_MAX_CONNECTIONS", "50"))
         self._lock = threading.Lock()
         self._last_health_check = 0.0
         self._health_interval = 15.0
         self._available = False
+
+    @property
+    def _pool(self):
+        return self.__pool
+
+    @_pool.setter
+    def _pool(self, value):
+        self.__pool = value
+
+    @_pool.deleter
+    def _pool(self):
+        self.__pool = None
 
     def _ensure_pool(self) -> bool:
         now = time.monotonic()

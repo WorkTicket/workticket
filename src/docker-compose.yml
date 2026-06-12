@@ -24,6 +24,7 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
+      - /etc/nginx/conf.d
     mem_limit: 256m
     mem_reservation: 128m
     cpus: 1
@@ -35,8 +36,10 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    volumes:
-      - ./nginx/ssl/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
+    # volumes:
+    #   - ./nginx/ssl/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
+    # DH params: run `openssl dhparam -out src/nginx/ssl/dhparam.pem 4096` then uncomment above
+    # and add `ssl_dhparam /etc/nginx/ssl/dhparam.pem;` to the server block in nginx.conf
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -117,11 +120,11 @@ services:
       CLAMAV_NO_FRESHCLAMD: "false"
       CLAMD_STARTUP_TIMEOUT: "120"
     healthcheck:
-      test: ["CMD", "clamdcheck"]
+      test: ["CMD", "clamdscan", "--version"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 180s
     volumes:
       - clamav-db:/var/lib/clamav
 

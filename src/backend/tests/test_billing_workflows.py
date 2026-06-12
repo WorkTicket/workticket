@@ -13,11 +13,11 @@ BILLING_PREFIX = "/api/v1/billing"
 @pytest.mark.asyncio
 async def test_webhook_body_size_rejection(client: AsyncClient, monkeypatch):
     """M2: Chunked body reading rejects payload exceeding max_request_body_size."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
     from app.config import get_settings
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     settings = get_settings()
     oversized = b"x" * (settings.max_request_body_size + 1024)
@@ -35,11 +35,11 @@ async def test_webhook_body_size_rejection(client: AsyncClient, monkeypatch):
 @pytest.mark.asyncio
 async def test_webhook_body_size_rejection_chunked_no_header(client: AsyncClient, monkeypatch):
     """M2: Even without content-length header, oversized body is rejected by chunked reader."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
     from app.config import get_settings
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     settings = get_settings()
     oversized = b"x" * (settings.max_request_body_size + 1024)
@@ -58,10 +58,10 @@ async def test_webhook_body_size_rejection_chunked_no_header(client: AsyncClient
 @pytest.mark.asyncio
 async def test_webhook_replay_detection(client: AsyncClient, monkeypatch):
     """4C: Webhook events outside 5-minute skew window are rejected."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     old_event = {
         "id": "evt_test_replay_" + str(int(time.time())),
@@ -84,12 +84,12 @@ async def test_webhook_replay_detection(client: AsyncClient, monkeypatch):
 @pytest.mark.asyncio
 async def test_webhook_missing_secret_returns_503(client: AsyncClient, monkeypatch):
     """Unconfigured Stripe secret returns 503."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
-    settings = billing_router.settings
+    settings = invoice_routes.settings
     original_secret = settings.stripe_webhook_secret
     try:
         settings.stripe_webhook_secret = ""
@@ -109,17 +109,29 @@ async def test_reconciliation_underflow_tracks_debt(client: AsyncClient, monkeyp
     from app.billing.models import BillingAccount
     from app.billing.reconciliation import reconcile_cost
 
+    from sqlalchemy import select
+
     async for db in override_get_db():
-        account = BillingAccount(
-            company_id=UUID("00000000-0000-0000-0000-000000000001"),
-            plan="pro",
-            monthly_quota_acu=1000,
-            reserved_acu=Decimal("5"),
-            used_acu=Decimal("0"),
-            acu_debt=Decimal("0"),
+        result = await db.execute(
+            select(BillingAccount).where(BillingAccount.company_id == UUID("00000000-0000-0000-0000-000000000001"))
         )
-        db.add(account)
+        account = result.scalar_one_or_none()
+        if account is None:
+            account = BillingAccount(
+                company_id=UUID("00000000-0000-0000-0000-000000000001"),
+                plan="pro",
+                monthly_quota_acu=1000,
+                reserved_acu=Decimal("5"),
+                used_acu=Decimal("0"),
+                acu_debt=Decimal("0"),
+            )
+            db.add(account)
+        else:
+            account.reserved_acu = Decimal("5")
+            account.used_acu = Decimal("0")
+            account.acu_debt = Decimal("0")
         await db.commit()
+        await db.refresh(account)
 
         result = await reconcile_cost(
             db=db,
@@ -156,9 +168,9 @@ async def override_get_db():
 @pytest.mark.asyncio
 async def test_webhook_rate_limiter_blocks_excessive(client: AsyncClient, monkeypatch):
     """4C: Webhook rate limiter blocks requests exceeding 10/60s."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
 
     responses = []
     for _i in range(12):
@@ -224,10 +236,10 @@ async def test_beat_schedule_stripe_ip_refresh_task():
 @pytest.mark.asyncio
 async def test_webhook_stripe_ip_validation_fails_open(client: AsyncClient, monkeypatch):
     """4C: Non-Stripe IP is rejected with 403."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
     monkeypatch.setattr(
-        billing_router,
+        invoice_routes,
         "_validate_stripe_ip",
         AsyncMock(side_effect=HTTPException(status_code=403, detail="Webhook source IP not allowed")),
     )
@@ -243,10 +255,10 @@ async def test_webhook_stripe_ip_validation_fails_open(client: AsyncClient, monk
 @pytest.mark.asyncio
 async def test_webhook_missing_signature_header(client: AsyncClient, monkeypatch):
     """4C: Missing stripe-signature header causes invalid payload error."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     response = await client.post(
         f"{BILLING_PREFIX}/webhook",
@@ -260,10 +272,10 @@ async def test_webhook_missing_signature_header(client: AsyncClient, monkeypatch
 @pytest.mark.asyncio
 async def test_webhook_advisory_lock_concurrent(client: AsyncClient, monkeypatch):
     """4C: Concurrent webhook processing advisory lock prevents double processing."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     event_id = "evt_test_concurrent_" + str(int(time.time()))
     payload = {
@@ -285,10 +297,10 @@ async def test_webhook_advisory_lock_concurrent(client: AsyncClient, monkeypatch
 @pytest.mark.asyncio
 async def test_webhook_empty_body_returns_400(client: AsyncClient, monkeypatch):
     """4C: Webhook with empty body returns 400."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     response = await client.post(
         f"{BILLING_PREFIX}/webhook",
@@ -301,10 +313,10 @@ async def test_webhook_empty_body_returns_400(client: AsyncClient, monkeypatch):
 @pytest.mark.asyncio
 async def test_webhook_unknown_event_type_succeeds(client: AsyncClient, monkeypatch):
     """4C: Unknown event type is logged but webhook returns success."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     event_id = "evt_test_unknown_" + str(int(time.time()))
     payload = {
@@ -326,11 +338,11 @@ async def test_webhook_unknown_event_type_succeeds(client: AsyncClient, monkeypa
 @pytest.mark.asyncio
 async def test_webhook_rate_limiter_redis_fallback_open(client: AsyncClient, monkeypatch):
     """4C: Rate limiter fails open when Redis is unavailable."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
 
-    with patch.object(billing_router, "_check_webhook_rate", side_effect=Exception("Redis down")):
+    with patch.object(invoice_routes, "_check_webhook_rate", side_effect=Exception("Redis down")):
         response = await client.post(
             f"{BILLING_PREFIX}/webhook",
             json={"type": "test"},
@@ -373,10 +385,10 @@ async def test_billing_account_endpoint(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_webhook_missing_event_id_skips_dedup(client: AsyncClient, monkeypatch):
     """4C: Webhook without event ID skips dedup and processes without error."""
-    from app.billing import router as billing_router
+    from app.billing import invoice_routes
 
-    monkeypatch.setattr(billing_router, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(billing_router, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     payload = {
         "type": "unknown.test.event",

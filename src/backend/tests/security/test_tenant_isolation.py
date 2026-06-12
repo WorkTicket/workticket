@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from app.main import app
 
 
 @pytest.mark.asyncio
@@ -66,7 +67,7 @@ async def test_cross_tenant_billing_account_isolation(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     response = await client.get("/api/v1/billing/account")
     assert response.status_code in (200, 404)
@@ -100,7 +101,7 @@ async def test_cross_tenant_estimate_list_isolation(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     response = await client.get("/api/v1/estimates")
     assert response.status_code == 200
@@ -125,7 +126,7 @@ async def test_cross_tenant_billing_modification_rejected(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     response = await client.post(
         "/api/v1/billing/disable-ai",
@@ -156,7 +157,7 @@ async def test_cross_tenant_ai_process_job_rejected(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     foreign_job_id = uuid.uuid4()
     response = await client.post(f"/api/v1/ai/process-job/{foreign_job_id}")
@@ -166,7 +167,7 @@ async def test_cross_tenant_ai_process_job_rejected(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_unauthenticated_requests_rejected(client: AsyncClient):
     """All protected endpoints reject unauthenticated requests."""
-    client.app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
     protected_endpoints = [
         ("GET", "/api/v1/jobs"),
@@ -201,7 +202,7 @@ async def test_cross_tenant_job_modification_rejected(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     foreign_job_id = uuid.uuid4()
     response = await client.patch(
@@ -225,7 +226,7 @@ async def test_cross_tenant_media_upload_isolation(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     response = await client.post(
         "/api/v1/media/upload-url",
@@ -248,7 +249,7 @@ async def test_cross_tenant_analytics_isolation(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     response = await client.get("/api/v1/analytics")
     assert response.status_code in (200, 404)
@@ -268,7 +269,7 @@ async def test_cross_tenant_job_access_prevented(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     foreign_job_id = uuid.uuid4()
     response = await client.get(f"/api/v1/jobs/{foreign_job_id}")
@@ -298,7 +299,7 @@ async def test_cross_tenant_quote_access_prevented(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     foreign_quote_id = uuid.uuid4()
     response = await client.get(f"/api/v1/quotes/{foreign_quote_id}")
@@ -327,7 +328,7 @@ async def test_cross_tenant_invoice_access_prevented(client: AsyncClient):
         role="owner",
         is_active=True,
     )
-    client.app.dependency_overrides[get_current_user] = lambda: other_company_user
+    app.dependency_overrides[get_current_user] = lambda: other_company_user
 
     response = await client.get("/api/v1/billing/invoices")
     assert response.status_code in (200, 404)
@@ -339,16 +340,16 @@ async def test_raw_sql_tenant_isolation(client: AsyncClient):
     from sqlalchemy import text
 
     from app.database import AsyncSessionLocal
-    from app.db.rls import clear_tenant_context, set_tenant_context
+    from app.db.rls import clear_rls_tenant_context, set_rls_tenant_context
 
     async with AsyncSessionLocal() as db:
-        await set_tenant_context(db, uuid.UUID("00000000-0000-0000-0000-000000000001"))
+        await set_rls_tenant_context(db, uuid.UUID("00000000-0000-0000-0000-000000000001"))
         result = await db.execute(
             text("SELECT company_id FROM jobs WHERE company_id != '00000000-0000-0000-0000-000000000001' LIMIT 1")
         )
         cross_tenant_job = result.scalar_one_or_none()
         assert cross_tenant_job is None, "RLS should prevent cross-tenant raw SQL access"
-        await clear_tenant_context(db)
+        await clear_rls_tenant_context(db)
 
 
 @pytest.mark.asyncio
@@ -357,26 +358,26 @@ async def test_disabled_orm_listener_still_secured_by_rls(client: AsyncClient):
     from sqlalchemy import select
 
     from app.database import AsyncSessionLocal
-    from app.db.rls import clear_tenant_context, set_tenant_context
+    from app.db.rls import clear_rls_tenant_context, set_rls_tenant_context
     from app.jobs.models import Job
 
     async with AsyncSessionLocal() as db:
         tenant_a = uuid.UUID("00000000-0000-0000-0000-000000000001")
         tenant_b = uuid.UUID("00000000-0000-0000-0000-000000000099")
 
-        await set_tenant_context(db, tenant_a)
+        await set_rls_tenant_context(db, tenant_a)
 
         result = await db.execute(select(Job).limit(50))
         jobs = result.scalars().all()
         for j in jobs:
             assert j.company_id == tenant_a, f"Job {j.id} has company_id {j.company_id} != tenant_a {tenant_a}"
 
-        await clear_tenant_context(db)
+        await clear_rls_tenant_context(db)
 
-        await set_tenant_context(db, tenant_b)
+        await set_rls_tenant_context(db, tenant_b)
         result = await db.execute(select(Job).limit(50))
         jobs = result.scalars().all()
         for j in jobs:
             assert j.company_id == tenant_b, f"Job {j.id} has company_id {j.company_id} != tenant_b {tenant_b}"
 
-        await clear_tenant_context(db)
+        await clear_rls_tenant_context(db)

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -26,7 +26,7 @@ async def test_job_crud_rate_limit():
     """Job CRUD endpoints have 2/s rate limit with burst 5."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/jobs")
+    rate, burst = _get_limits("/api/v1/jobs")
     assert rate == 2.0
     assert burst == 5
 
@@ -36,7 +36,7 @@ async def test_job_detail_rate_limit():
     """Job detail endpoint falls under /api/v1/jobs prefix."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/jobs/some-job-id")
+    rate, burst = _get_limits("/api/v1/jobs/some-job-id")
     assert rate == 2.0
     assert burst == 5
 
@@ -46,7 +46,7 @@ async def test_ai_processing_rate_limit():
     """AI process-job has 1/s rate limit with burst 3."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/ai/process-job/test-id")
+    rate, burst = _get_limits("/api/v1/ai/process-job/test-id")
     assert rate == 1.0
     assert burst == 3
 
@@ -56,7 +56,7 @@ async def test_ai_output_rate_limit():
     """AI output endpoint has 10/s rate limit with burst 20."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/ai/output/test-id")
+    rate, burst = _get_limits("/api/v1/ai/output/test-id")
     assert rate == 10.0
     assert burst == 20
 
@@ -66,7 +66,7 @@ async def test_media_upload_rate_limit():
     """Media upload-url has 0.333/s (~20/min) rate limit with burst 5."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/media/upload-url")
+    rate, burst = _get_limits("/api/v1/media/upload-url")
     assert rate == 0.333
     assert burst == 5
 
@@ -76,7 +76,7 @@ async def test_media_confirm_upload_rate_limit():
     """Media confirm-upload has 0.333/s (~20/min) rate limit with burst 5."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/media/confirm-upload")
+    rate, burst = _get_limits("/api/v1/media/confirm-upload")
     assert rate == 0.333
     assert burst == 5
 
@@ -86,7 +86,7 @@ async def test_estimates_rate_limit():
     """Estimates endpoints have 5/s rate limit with burst 10."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/estimates")
+    rate, burst = _get_limits("/api/v1/estimates")
     assert rate == 5.0
     assert burst == 10
 
@@ -96,7 +96,7 @@ async def test_unmatched_path_falls_to_default():
     """Unmatched paths use the default 10/s rate with burst 10."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/some/new/endpoint")
+    rate, burst = _get_limits("/api/v1/some/new/endpoint")
     assert rate == 10.0
     assert burst == 10
 
@@ -106,7 +106,7 @@ async def test_rate_limit_strict_limits_with_workers():
     """_get_strict_limits correctly divides rate/burst by estimated workers."""
     from app.middleware.rate_limit import _get_strict_limits
 
-    strict_rate, strict_burst = _get_strict_limits(None, 10.0, 10)
+    strict_rate, strict_burst = _get_strict_limits(10.0, 10)
     assert strict_rate >= 1.0
     assert strict_burst >= 2
 
@@ -116,7 +116,7 @@ async def test_webhook_rate_limit():
     """Billing webhook has strict 0.167/s (~6/min) rate limit with burst 1."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/billing/webhook")
+    rate, burst = _get_limits("/api/v1/billing/webhook")
     assert rate == 0.167
     assert burst == 1
 
@@ -126,7 +126,7 @@ async def test_billing_credits_rate_limit():
     """Billing credits endpoint has 0.167/s rate limit with burst 1."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/billing/credits")
+    rate, burst = _get_limits("/api/v1/billing/credits")
     assert rate == 0.167
     assert burst == 1
 
@@ -136,7 +136,7 @@ async def test_billing_change_plan_rate_limit():
     """Billing change-plan has 0.017/s (~1/min) rate limit with burst 1."""
     from app.middleware.rate_limit import _get_limits
 
-    rate, burst = _get_limits(None, "/api/v1/billing/change-plan")
+    rate, burst = _get_limits("/api/v1/billing/change-plan")
     assert rate == 0.017
     assert burst == 1
 
@@ -144,6 +144,8 @@ async def test_billing_change_plan_rate_limit():
 @pytest.mark.asyncio
 async def test_rate_limit_middleware_rejects_excess(client):
     """Rate limit middleware rejects requests that exceed the limit."""
+    from unittest.mock import patch as _patch
+
     from app.middleware.rate_limit import RateLimitMiddleware
 
     middleware = RateLimitMiddleware.__new__(RateLimitMiddleware)
@@ -153,9 +155,15 @@ async def test_rate_limit_middleware_rejects_excess(client):
     user_id = "test-user-id"
     company_id = "00000000-0000-0000-0000-000000000001"
 
-    allowed, reason = await middleware._check_rate(path, user_id, company_id, 0.001, 1)
-    assert not allowed, "Rate should be exceeded"
-    assert reason is not None
+    with _patch("app.ai.rate_limiter.rate_limiter.check_all", side_effect=Exception("Redis down")):
+        # Local fallback has strict_burst=2, need 3 calls to exhaust
+        allowed1, _ = await middleware._check_rate(path, user_id, company_id, 0.001, 1)
+        assert allowed1, "First call should be allowed (burst=2)"
+        allowed2, _ = await middleware._check_rate(path, user_id, company_id, 0.001, 1)
+        assert allowed2, "Second call should be allowed (burst=2)"
+        allowed3, reason3 = await middleware._check_rate(path, user_id, company_id, 0.001, 1)
+        assert not allowed3, "Third call should be exceeded"
+        assert reason3 is not None
 
 
 @pytest.mark.asyncio
@@ -188,7 +196,7 @@ async def test_check_rate_redis_fallback_to_local(client):
     mock_redis_rl = AsyncMock()
     mock_redis_rl.check_all.side_effect = Exception("Redis down")
 
-    mock_local = AsyncMock()
+    mock_local = MagicMock()
     mock_local._get_bucket.return_value.consume.return_value = True
 
     with (

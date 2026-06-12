@@ -163,12 +163,19 @@ class RateLimiter:
     def __init__(self):
         self._redis: object | None = None
 
-        self.user_rate = 1.0
-        self.user_burst = 3
-        self.tenant_rate = 5.0
-        self.tenant_burst = 15
-        self.global_rate = 5.0
-        self.global_burst = 10
+        self.user_rate = float(os.getenv("RL_USER_RATE", "1.0"))
+        self.user_burst = int(os.getenv("RL_USER_BURST", "3"))
+        self.tenant_rate = float(os.getenv("RL_TENANT_RATE", "5.0"))
+        self.tenant_burst = int(os.getenv("RL_TENANT_BURST", "15"))
+        self.global_rate = float(os.getenv("RL_GLOBAL_RATE", "5.0"))
+        self.global_burst = int(os.getenv("RL_GLOBAL_BURST", "10"))
+
+    def get_limits(self, endpoint: str, plan: str = "free") -> dict | None:
+        """Return rate limits for a given endpoint and plan.
+
+        Falls back to get_plan_limits for known endpoint categories.
+        """
+        return self.get_plan_limits(plan)
 
     @staticmethod
     def get_plan_limits(plan: str = "free") -> dict:
