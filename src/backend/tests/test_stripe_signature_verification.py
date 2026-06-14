@@ -29,8 +29,10 @@ def _sign_payload(payload: dict, secret: str, timestamp: int = None) -> str:
 async def test_valid_signature_accepted(client: AsyncClient, monkeypatch):
     from app.billing import invoice_routes
 
-    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
-    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     test_secret = "whsec_test_valid_signature_key_32chars"
     settings = invoice_routes.settings
@@ -63,8 +65,10 @@ async def test_valid_signature_accepted(client: AsyncClient, monkeypatch):
 async def test_invalid_signature_rejected(client: AsyncClient, monkeypatch):
     from app.billing import invoice_routes
 
-    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
-    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     test_secret = "whsec_real_secret_for_testing_ok"
     settings = invoice_routes.settings
@@ -97,8 +101,10 @@ async def test_invalid_signature_rejected(client: AsyncClient, monkeypatch):
 async def test_tampered_payload_with_valid_signature_rejected(client: AsyncClient, monkeypatch):
     from app.billing import invoice_routes
 
-    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", __import__("unittest.mock").AsyncMock())
-    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", __import__("unittest.mock").AsyncMock())
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
 
     test_secret = "whsec_original_secret_key_1234"
     settings = invoice_routes.settings

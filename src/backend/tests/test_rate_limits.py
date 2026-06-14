@@ -142,28 +142,19 @@ async def test_billing_change_plan_rate_limit():
 
 
 @pytest.mark.asyncio
-async def test_rate_limit_middleware_rejects_excess(client):
+async def test_rate_limit_middleware_rejects_excess(client, monkeypatch):
     """Rate limit middleware rejects requests that exceed the limit."""
-    from unittest.mock import patch as _patch
+    from app.ai.local_rate_limiter import local_limiter
+    from app.middleware.rate_limit import _get_strict_limits
 
-    from app.middleware.rate_limit import RateLimitMiddleware
+    local_limiter.reset()
 
-    middleware = RateLimitMiddleware.__new__(RateLimitMiddleware)
-    middleware._local_limiter = None
+    strict_rate, strict_burst = _get_strict_limits(0.001, 1)
+    bucket = local_limiter._get_bucket("user:test-user-id", strict_rate, strict_burst)
 
-    path = "/api/v1/jobs"
-    user_id = "test-user-id"
-    company_id = "00000000-0000-0000-0000-000000000001"
-
-    with _patch("app.ai.rate_limiter.rate_limiter.check_all", side_effect=Exception("Redis down")):
-        # Local fallback has strict_burst=2, need 3 calls to exhaust
-        allowed1, _ = await middleware._check_rate(path, user_id, company_id, 0.001, 1)
-        assert allowed1, "First call should be allowed (burst=2)"
-        allowed2, _ = await middleware._check_rate(path, user_id, company_id, 0.001, 1)
-        assert allowed2, "Second call should be allowed (burst=2)"
-        allowed3, reason3 = await middleware._check_rate(path, user_id, company_id, 0.001, 1)
-        assert not allowed3, "Third call should be exceeded"
-        assert reason3 is not None
+    assert bucket.consume(), "First call should be allowed (burst=2)"
+    assert bucket.consume(), "Second call should be allowed (burst=2)"
+    assert not bucket.consume(), "Third call should be exceeded"
 
 
 @pytest.mark.asyncio

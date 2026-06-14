@@ -133,6 +133,9 @@ async def validate_stripe_ip(client_ip: str) -> bool:
     if networks and any(ip in net for net in networks):
         return True
 
+    if networks:
+        return False
+
     # Fail-open with warning: cache should never be empty with hardcoded defaults,
     # but if it is (e.g. startup race), log critical warning instead of rejecting.
     logger.critical(

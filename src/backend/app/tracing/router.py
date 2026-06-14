@@ -173,7 +173,7 @@ async def get_trace_metrics(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    from sqlalchemy import func as sa_func
+    from sqlalchemy import Integer, func as sa_func
 
     cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
     base = [ExecutionTrace.company_id == current_user.company_id, ExecutionTrace.started_at >= cutoff]
@@ -182,7 +182,7 @@ async def get_trace_metrics(
         select(
             ExecutionTrace.step_name,
             sa_func.count(ExecutionTrace.id).label("total"),
-            sa_func.sum(sa_func.cast(ExecutionTrace.status == "failed", sa_func.Integer)).label("failures"),
+            sa_func.sum(sa_func.cast(ExecutionTrace.status == "failed", Integer)).label("failures"),
             sa_func.avg(ExecutionTrace.duration_ms).label("avg_ms"),
             sa_func.percentile_cont(0.5).within_group(ExecutionTrace.duration_ms).label("p50_ms"),
             sa_func.percentile_cont(0.95).within_group(ExecutionTrace.duration_ms).label("p95_ms"),

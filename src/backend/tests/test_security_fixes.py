@@ -15,7 +15,8 @@ async def test_csv_injection_formula_chars_stripped(client: AsyncClient, monkeyp
 
     from app.billing import invoice_routes
     from app.database import AsyncSessionLocal
-    from app.jobs.models import Customer, Job, Invoice
+    from app.billing.models import Invoice
+    from app.jobs.models import Customer, Job
 
     invoice_routes._check_webhook_rate = AsyncMock()
 
@@ -228,11 +229,23 @@ async def test_jwt_audience_required_in_production():
 @pytest.mark.asyncio
 async def test_whisper_service_fails_closed_without_key():
     """H-4: Whisper service should reject requests when API_KEY is not set."""
+    import importlib.util
+    import os
+    import sys
+
+    whisper_path = os.path.join(os.path.dirname(__file__), "..", "..", "whisper-service", "app.py")
+    whisper_path = os.path.abspath(whisper_path)
+    if not os.path.exists(whisper_path):
+        pytest.skip("whisper-service app.py not found at expected path")
+    spec = importlib.util.spec_from_file_location("whisper_app", whisper_path)
+    whisper_app = importlib.util.module_from_spec(spec)
+    sys.modules["whisper_app"] = whisper_app
+    spec.loader.exec_module(whisper_app)
+
     from fastapi import HTTPException
-    from whisper_service.app import verify_auth
 
     with pytest.raises(HTTPException) as exc:
-        verify_auth(None)
+        whisper_app.verify_auth(None)
     assert exc.value.status_code == 500
     assert "WHISPER_API_KEY" in exc.value.detail
 
@@ -254,8 +267,7 @@ async def test_jwt_aud_option_set():
     """H-1: JWT decode should include verify_aud option."""
     import inspect
 
-    from app.auth.dependencies import get_current_user
+    from app.auth.dependencies import _verify_clerk_token
 
-    source = inspect.getsource(get_current_user)
-    assert "verify_aud" in source
+    source = inspect.getsource(_verify_clerk_token)
     assert "verify_aud" in source

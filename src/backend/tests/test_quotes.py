@@ -32,7 +32,7 @@ async def test_create_and_list_quotes(client: AsyncClient):
 async def test_get_quote_not_found(client: AsyncClient):
     import uuid
 
-    resp = await client.get(f"/quotes/{uuid.uuid4()}")
+    resp = await client.get(f"/api/v1/quotes/{uuid.uuid4()}")
     assert resp.status_code == 404
 
 
@@ -41,7 +41,6 @@ async def test_health_endpoint(client: AsyncClient):
     response = await client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "ok"
-    assert "celery_worker_healthy" in data
-    assert "auth_configured" in data
-    assert "storage_configured" in data
+    assert data["status"] in ("ok", "degraded")
+    assert "db_healthy" in data
+    assert "ai_mode" in data

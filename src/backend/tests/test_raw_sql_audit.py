@@ -70,7 +70,7 @@ def test_no_raw_sql_bypasses_tenant_isolation():
     violations = []
 
     for py_file in APP_DIR.rglob("*.py"):
-        rel_path = str(py_file.relative_to(py_file.parent.parent))
+        rel_path = str(py_file.relative_to(py_file.parent.parent)).replace("\\", "/")
 
         if rel_path in ALLOWED_NO_FILTER_FILES:
             continue

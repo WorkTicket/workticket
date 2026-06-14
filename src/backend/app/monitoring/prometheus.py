@@ -1,7 +1,10 @@
 import hmac
 import logging
 import threading
-from typing import Any
+from typing import Any, Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger(__name__)
 
@@ -586,6 +589,29 @@ def set_r2_circuit(count: int):
 # --- Setup ---
 
 
+_security_scheme = HTTPBearer(auto_error=False)
+
+
+async def metrics_auth(credentials: Optional[HTTPAuthorizationCredentials] = Depends(_security_scheme)):
+    from app.config import get_settings
+
+    settings = get_settings()
+    metrics_token = settings.metrics_access_token
+    if not metrics_token:
+        if settings.debug:
+            logger.warning("Metrics auth disabled in debug mode — NOT FOR PRODUCTION")
+            return True
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Metrics authentication not configured. Set METRICS_ACCESS_TOKEN.",
+        )
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Metrics authentication required")
+    if not hmac.compare_digest(credentials.credentials, metrics_token):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid metrics token")
+    return True
+
+
 def setup_prometheus(app):
     global _registry_instrumentator
     try:
@@ -614,31 +640,9 @@ def setup_prometheus(app):
         _register_phase3_metrics(REGISTRY)
         _register_redis_tenant_metrics(REGISTRY)
 
-        from fastapi import APIRouter, Depends, HTTPException, status
-        from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+        from fastapi import APIRouter, Depends as _Depends
 
-        from app.config import get_settings
-
-        security = HTTPBearer(auto_error=False)
-
-        async def metrics_auth(credentials: HTTPAuthorizationCredentials = Depends(security)):
-            settings = get_settings()
-            metrics_token = settings.metrics_access_token
-            if not metrics_token:
-                if settings.debug:
-                    logger.warning("Metrics auth disabled in debug mode — NOT FOR PRODUCTION")
-                    return True
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Metrics authentication not configured. Set METRICS_ACCESS_TOKEN.",
-                )
-            if not credentials:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Metrics authentication required")
-            if not hmac.compare_digest(credentials.credentials, metrics_token):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid metrics token")
-            return True
-
-        admin_router = APIRouter(dependencies=[Depends(metrics_auth)])
+        admin_router = APIRouter(dependencies=[_Depends(metrics_auth)])
         instrumentator.expose(admin_router, endpoint="/metrics", include_in_schema=False)
         app.mount("/admin", admin_router)
         logger.info("Prometheus metrics available at /admin/metrics (token-protected)")

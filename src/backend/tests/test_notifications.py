@@ -145,7 +145,7 @@ async def test_email_metrics():
 
 @pytest.mark.asyncio
 async def test_send_push_notification_no_tokens():
-    result = await send_push_notification(job_id="test-job", title="Test", body="Test Push", company_id="test-company")
+    result = await send_push_notification(token="test-token", title="Test", body="Test Push", company_id="test-company")
     assert result is False
 
 

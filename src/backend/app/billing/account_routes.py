@@ -41,8 +41,11 @@ async def get_billing_account(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    result = await db.execute(select(Company).where(Company.id == current_user.company_id))
+    company = result.scalar_one_or_none()
+    plan = company.subscription_plan if company else "free"
     account = await quota_engine.get_or_create_account(
-        db, current_user.company_id, current_user.company.subscription_plan
+        db, current_user.company_id, plan
     )
     return account
 

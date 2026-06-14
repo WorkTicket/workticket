@@ -8,8 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.ai.audit import AIAuditLog  # noqa: F401
 from app.analytics.events import AnalyticsEvent  # noqa: F401
+from app.billing.dead_letter import DeadLetterJob  # noqa: F401
+from app.billing.idempotency import IdempotencyKey  # noqa: F401
+from app.billing.models import AIJobEstimate, BillingAccount, BillingAuditLog, Invoice, UsageLedger  # noqa: F401
+from app.billing.user_quota import UserDailyUsage  # noqa: F401
 from app.database import Base
-from app.jobs.models import Company, User
+from app.estimates.audit import EstimateAuditSnapshot  # noqa: F401
+from app.estimates.models import CompanyPricingBrain, EstimateAuditLog, EstimateLineItem, HistoricalJobData, Service  # noqa: F401
+from app.integrations.models import ImportJob, ImportLog, IntegrationConnection, MappingRule  # noqa: F401
+from app.jobs.models import AIOutput, AIOutputFeedback, Company, Customer, Job, JobAuditLog, JobMedia, User, UserAuditLog  # noqa: F401
 from app.main import app
 from app.notifications.models import PushToken  # noqa: F401
 from app.tracing.models import ExecutionTrace  # noqa: F401
@@ -18,6 +25,7 @@ TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@postgres:5432/workti
 
 _test_engine = None
 TestSessionLocal = None
+WS_TEST_JOB_ID = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
 
 
 def _ensure_test_engine():
@@ -31,13 +39,19 @@ def _ensure_test_engine():
 async def setup_db():
     _ensure_test_engine()
     async with _test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(__import__("sqlalchemy").text(
+            "DO $$ DECLARE r RECORD; BEGIN "
+            "FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP "
+            "EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE'; "
+            "END LOOP; END $$;"
+        ))
         await conn.run_sync(Base.metadata.create_all)
     async with TestSessionLocal() as session:
+        from sqlalchemy import select
+        from app.jobs.models import Job
+
         existing = await session.execute(
-            __import__("sqlalchemy")
-            .select(Company)
-            .where(Company.id == uuid.UUID("00000000-0000-0000-0000-000000000001"))
+            select(Company).where(Company.id == uuid.UUID("00000000-0000-0000-0000-000000000001"))
         )
         if not existing.scalar_one_or_none():
             company = Company(
@@ -57,11 +71,58 @@ async def setup_db():
                 token_version=0,
             )
             session.add(user)
-            await session.commit()
+            await session.flush()
+
+        ws_job = await session.execute(
+            select(Job).where(Job.id == uuid.UUID(WS_TEST_JOB_ID))
+        )
+        if not ws_job.scalar_one_or_none():
+            from app.jobs.models import Customer
+            customer = Customer(
+                id=uuid.UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                company_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                name="Test Customer",
+            )
+            session.add(customer)
+            await session.flush()
+            job = Job(
+                id=uuid.UUID(WS_TEST_JOB_ID),
+                company_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+                customer_id=uuid.UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+                technician_id="test-user-id",
+                description="Test WebSocket job",
+                status="pending",
+                address="123 Test St",
+                scheduled_time=__import__("datetime").datetime(2025, 1, 1),
+            )
+            session.add(job)
+        await session.commit()
+    import app.database as app_db
+    app_db.AsyncSessionLocal._set(TestSessionLocal)
+    _prev_engine = getattr(app_db, "_engine", None)
+    app_db._engine = _test_engine
+    app_db.engine = _test_engine
     yield
+    app_db._engine = _prev_engine
+    app_db.engine = _prev_engine
+    app_db.AsyncSessionLocal._set(TestSessionLocal)
     _ensure_test_engine()
     async with _test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(__import__("sqlalchemy").text(
+            "DO $$ DECLARE r RECORD; BEGIN "
+            "FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP "
+            "EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE'; "
+            "END LOOP; END $$;"
+        ))
+
+
+@pytest.fixture(autouse=True)
+def _bypass_rate_limit_middleware():
+    from unittest.mock import patch
+    from app.middleware.rate_limit import RateLimitMiddleware
+
+    with patch.object(RateLimitMiddleware, "_check_rate", return_value=(True, "")):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -70,6 +131,7 @@ def _reset_local_rate_limiter():
 
     local_limiter.reset()
     yield
+    local_limiter.reset()
 
 
 @pytest.fixture(autouse=True)
@@ -81,6 +143,15 @@ def _clear_dependency_overrides():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
     yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_webhook_rate_module_state():
+    from app.billing import invoice_routes
+
+    invoice_routes._webhook_rate.clear()
+    yield
+    invoice_routes._webhook_rate.clear()
 
 
 async def override_get_db() -> AsyncGenerator[AsyncSession, Any]:
@@ -103,6 +174,7 @@ async def override_get_current_user() -> User:
         email="test@example.com",
         name="Test User",
         role="owner",
+        is_active=True,
     )
 
 

@@ -15,7 +15,7 @@ from uuid import UUID
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import select, BigInteger, bindparam
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +50,35 @@ _webhook_window = 60.0
 _WEBHOOK_GLOBAL_MAX_CONCURRENT = 5
 _WEBHOOK_GLOBAL_RATE_LIMIT = 60
 _WEBHOOK_GLOBAL_RATE_WINDOW = 60
+
+
+_csv_control_chars = str.maketrans(
+    "".join(chr(c) for c in range(0x20) if chr(c) not in ("\t", "\n", "\r")), " " * 29
+)
+
+_CSV_DANGEROUS_PATTERNS = [
+    r"(?i)=HYPERLINK\s*\(",
+    r"(?i)=DDE\s*\(",
+    r"(?i)=CMD\s*\(",
+    r"(?i)=EXEC\s*\(",
+    r"(?i)=SHELL\s*\(",
+    r"(?i)=MSEXCEL\|",
+    r"(?i)TABLE\s+",
+    r"<script[^>]*>",
+    r"javascript\s*:",
+]
+
+
+def _sanitize_csv(val: str) -> str:
+    if not val:
+        return val
+    val = val.replace('"', '""').translate(_csv_control_chars)
+    if re.match(r"^[\s]*[=+\-@\t\n\r|%&{}]", val):
+        val = "'" + val
+    for pattern in _CSV_DANGEROUS_PATTERNS:
+        if re.search(pattern, val):
+            val = "'" + val
+    return val
 
 
 async def _get_stripe_circuit():
@@ -153,8 +182,9 @@ async def _check_webhook_rate(ip: str) -> None:
 
     now = time.time()
     cutoff = now - _webhook_window
-    while _webhook_rate and next(iter(_webhook_rate.values())) < cutoff:
-        _webhook_rate.popitem(last=False)
+    expired = [k for k, ts in _webhook_rate.items() if ts < cutoff]
+    for k in expired:
+        _webhook_rate.pop(k, None)
     count = sum(1 for ts in _webhook_rate.values() if ts > cutoff)
     if count >= _webhook_rate_limit:
         raise HTTPException(status_code=429, detail="Too many webhook requests")
@@ -369,12 +399,12 @@ async def _process_webhook(
         logger.warning("Redis dedup check failed for event %s: %s", effective_event_id, _redis_err)
 
     if not _redis_dedup_hit:
-        _lock_hash = int(hashlib.sha256(f"stripe:{effective_event_id}".encode()).hexdigest()[:16], 16)
+        _lock_hash = int(hashlib.sha256(f"stripe:{effective_event_id}".encode()).hexdigest()[:15], 16)
         lock_result = await db.execute(
-            sa_text("SELECT pg_try_advisory_xact_lock(:lock_key_part1, :lock_key_part2)").bindparams(
-                lock_key_part1=_lock_hash & 0xFFFFFFFF,
-                lock_key_part2=(_lock_hash >> 32) & 0xFFFFFFFF,
-            )
+            sa_text("SELECT pg_try_advisory_xact_lock(:lock_key)").bindparams(
+                bindparam("lock_key", type_=BigInteger),
+            ),
+            {"lock_key": _lock_hash},
         )
         if not lock_result.scalar():
             raise HTTPException(status_code=409, detail="Concurrent webhook processing in progress")
@@ -715,32 +745,6 @@ async def export_invoice(
             "updated_at": invoice.updated_at.isoformat() if invoice.updated_at else None,
         }
     elif format == "csv":
-        _csv_control_chars = str.maketrans(
-            "".join(chr(c) for c in range(0x20) if chr(c) not in ("\t", "\n", "\r")), " " * 29
-        )
-
-        def _sanitize_csv(val: str) -> str:
-            if not val:
-                return val
-            val = val.replace('"', '""').translate(_csv_control_chars)
-            if re.match(r"^[\s]*[=+\-@\t\n\r|%&{}]", val):
-                val = "'" + val
-            _dangerous_patterns = [
-                r"(?i)=HYPERLINK\s*\(",
-                r"(?i)=DDE\s*\(",
-                r"(?i)=CMD\s*\(",
-                r"(?i)=EXEC\s*\(",
-                r"(?i)=SHELL\s*\(",
-                r"(?i)=MSEXCEL\|",
-                r"(?i)TABLE\s+",
-                r"<script[^>]*>",
-                r"javascript\s*:",
-            ]
-            for pattern in _dangerous_patterns:
-                if re.search(pattern, val):
-                    val = "'" + val
-            return val
-
         output = io.StringIO()
         writer = csv.writer(output, quoting=csv.QUOTE_ALL)
         writer.writerow(

@@ -178,6 +178,16 @@ Already verified: multi-tenant isolation, JWT auth on all endpoints, idempotency
 
 ---
 
+## Beta Feedback
+
+We actively want your feedback during the beta. Report bugs, suggest features, or share your experience:
+
+- **Email:** beta@workticket.app
+- **Form:** https://feedback.workticket.app
+- **Slack:** [#workticket-beta-feedback](https://workticket.slack.com/archives/beta-feedback) (invite-only during beta)
+
+---
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on our code of conduct, development process, and how to get started.
@@ -188,7 +198,7 @@ Please read [CONTRIBUTING.md](./CONTRIBUTING.md) for details on our code of cond
 
 Found a vulnerability? Please see [SECURITY.md](./SECURITY.md) for our disclosure policy.
 
-- **Report:** security@workticket.dev
+- **Report:** security@workticket.app
 - **Response time:** Within 48 hours
 - **Supported versions:** 1.0.x (beta)
 

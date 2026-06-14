@@ -3,7 +3,7 @@ import logging
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import BigInteger, bindparam, select
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,12 +31,12 @@ async def reconcile_cost(
 ) -> dict:
     # CRITICAL-2 FIX: Use advisory lock on (company_id, job_id) BEFORE BillingAccount lock.
     # This prevents two concurrent retries from both seeing existing_ledger=None.
-    _lock_hash = int(hashlib.sha256(f"reconcile:{company_id}:{job_id}".encode()).hexdigest()[:16], 16)
+    _lock_hash = int(hashlib.sha256(f"reconcile:{company_id}:{job_id}".encode()).hexdigest()[:15], 16)
     lock_result = await db.execute(
-        sa_text("SELECT pg_try_advisory_xact_lock(:lock_key_part1, :lock_key_part2)").bindparams(
-            lock_key_part1=_lock_hash & 0xFFFFFFFF,
-            lock_key_part2=(_lock_hash >> 32) & 0xFFFFFFFF,
-        )
+        sa_text("SELECT pg_try_advisory_xact_lock(:lock_key)").bindparams(
+            bindparam("lock_key", type_=BigInteger),
+        ),
+        {"lock_key": _lock_hash},
     )
     if not lock_result.scalar():
         logger.warning("Concurrent reconciliation lock contention for job %s, company %s", job_id, company_id)

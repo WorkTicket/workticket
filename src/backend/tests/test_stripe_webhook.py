@@ -2,7 +2,7 @@ import time
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
@@ -42,25 +42,30 @@ async def test_stripe_ip_validation():
 
 @pytest.mark.asyncio
 async def test_stripe_webhook_ip_check_disabled(monkeypatch):
+    from unittest.mock import patch
+
     monkeypatch.setenv("STRIPE_WEBHOOK_IP_CHECK_DISABLED", "1")
-    from app.billing.stripe_ips import refresh_stripe_ips, validate_stripe_ip
+    from app.billing.stripe_ips import get_settings, refresh_stripe_ips, validate_stripe_ip
 
-    await refresh_stripe_ips(force=True)
+    with patch.object(get_settings(), "debug", True):
+        await refresh_stripe_ips(force=True)
 
-    result = await validate_stripe_ip("192.0.2.1")
-    assert result is True, "Should pass when check disabled"
+        result = await validate_stripe_ip("192.0.2.1")
+        assert result is True, "Should pass when check disabled"
 
 
 @pytest.mark.asyncio
-async def test_stripe_webhook_replay_detection(stripe_event_payload):
+async def test_stripe_webhook_replay_detection(stripe_event_payload, monkeypatch):
     old_ts = int(time.time()) - 600
     stripe_event_payload["created"] = old_ts
 
     from app.billing import invoice_routes
 
-    invoice_routes._validate_stripe_ip = AsyncMock()
+    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
+    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
+    monkeypatch.setenv("STRIPE_WEBHOOK_CLOCK_SKEW_TOLERANCE", "300")
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/v1/billing/webhook",
             json=stripe_event_payload,

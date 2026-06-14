@@ -182,10 +182,9 @@ def validate_ai_output(output: AIOutputSchema, reject_on_invalid: bool = False) 
     if errors:
         msg = "; ".join(errors)
         if reject_on_invalid:
-            from app.exceptions import ValidationError
-
-            raise ValidationError(
-                message=f"AI output validation failed (NON_RECOVERABLE): {msg}", details={"errors": errors}
+            return ValidationResult(
+                False, None, f"AI output validation failed (NON_RECOVERABLE): {msg}",
+                failure_type=ValidationFailureType.NON_RECOVERABLE,
             )
         logger.warning("AI output validation warnings: %s", msg)
 
