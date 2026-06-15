@@ -14,7 +14,7 @@ opentelemetry-instrumentation-sqlalchemy==0.48b0
 opentelemetry-instrumentation-redis==0.48b0
 opentelemetry-instrumentation-httpx==0.48b0
 
-fastapi==0.115.0
+fastapi==0.137.0
 starlette==0.38.6
 uvicorn[standard]==0.30.6
 sqlalchemy[asyncio]==2.0.35
