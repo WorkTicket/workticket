@@ -49,6 +49,7 @@ async def _load_circuit_breaker():
             _circuit_last_failure = data.get("last_failure", 0.0)
             _circuit_cooldown = data.get("cooldown", _CIRCUIT_COOLDOWN)
     except Exception:
+        logger.debug("SMS non-critical operation failed, continuing without persistence")
         pass  # nosec B110
 
 
@@ -68,6 +69,7 @@ async def _save_circuit_breaker():
         ttl = int(_circuit_cooldown * 4)
         await r.setex(_CIRCUIT_REDIS_KEY, ttl, state)
     except Exception:
+        logger.debug("SMS non-critical operation failed, continuing without persistence")
         pass  # nosec B110
 
 
@@ -88,6 +90,7 @@ async def _log_delivery(to: str, status: str, company_id: str | None = None):
         await r.zadd(key, {entry: time.time()})
         await r.expire(key, 86400)
     except Exception:
+        logger.debug("SMS non-critical operation failed, continuing without persistence")
         pass  # nosec B110
 
 
@@ -110,6 +113,7 @@ async def _enqueue_dlq(to: str, body: str, company_id: str | None = None):
         await r.expire(_DLQ_KEY, 604800)
         logger.info("Enqueued SMS to %s on DLQ (circuit was open)", to)
     except Exception:
+        logger.debug("SMS non-critical operation failed, continuing without persistence")
         pass  # nosec B110
 
 
@@ -138,6 +142,7 @@ def _report_sms_metrics(circuit_open: int, latency_ms: float, is_failure: int):
         if is_failure:
             increment_sms_failure()
     except Exception:
+        logger.debug("SMS non-critical operation failed, continuing without persistence")
         pass  # nosec B110
 
 

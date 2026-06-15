@@ -89,6 +89,7 @@ def get_storm_status() -> dict:
 
         set_retry_guard_depth(len(_local_retry_counts))
     except Exception:
+        logger.debug("Failed to set retry guard depth metric")
         pass  # nosec B110
     return {
         "active_storms": active_storms,

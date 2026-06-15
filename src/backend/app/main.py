@@ -888,6 +888,7 @@ async def readiness():
                         if now - last > 3600:
                             stale_tasks.append(task_name)
                 except Exception:
+                    logger.debug("Failed to read beat task execution gauge for %s", task_name)
                     pass  # nosec B110
             if stale_tasks:
                 components["beat_tasks"] = {"status": "degraded", "stale": stale_tasks}
@@ -999,6 +1000,7 @@ async def health():
                 celery_queue_depth[q] = qlen
         _r.close()
     except Exception:
+        logger.debug("Failed to read Celery queue depths from Redis for health endpoint")
         pass  # nosec B110
 
     status = "ok" if db_healthy else "degraded"

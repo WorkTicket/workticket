@@ -166,6 +166,7 @@ def _get_raw_key() -> bytes:
                 key_bytes = key_bytes.ljust(32, b"\0")[:32]
             return key_bytes
         except Exception:
+            logger.debug("Failed to derive raw encryption key from hex, falling back")
             pass  # nosec B110
     return b""
 
@@ -207,6 +208,7 @@ def decrypt_field_from_storage(stored: str | None) -> str | None:
             if result != stored:
                 return result
         except Exception:
+            logger.debug("Failed to decrypt PII field with derived key, trying legacy key")
             pass  # nosec B110
 
     raw_key = _get_raw_key()
@@ -219,6 +221,7 @@ def decrypt_field_from_storage(stored: str | None) -> str | None:
                 aesgcm = AESGCM(raw_key)
                 return aesgcm.decrypt(nonce, ciphertext, None).decode("utf-8")
         except Exception:
+            logger.debug("Failed to decrypt PII field with legacy raw key")
             pass  # nosec B110
 
     try:

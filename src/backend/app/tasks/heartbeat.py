@@ -217,6 +217,7 @@ async def _cleanup():
         set_stuck_jobs("running", stats["stuck_running"])
         set_stuck_jobs("queued", stats["orphaned_queued"])
     except Exception:
+        logger.debug("Failed to set stuck job metrics")
         pass  # nosec B110
 
     return stats

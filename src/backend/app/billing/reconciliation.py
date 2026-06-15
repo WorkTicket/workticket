@@ -166,6 +166,7 @@ async def reconcile_cost(
             drift_pct = abs(reserved - actual_acu) / reserved * 100 if reserved > 0 else 0
             set_billing_drift_pct(float(drift_pct))
     except Exception:
+        logger.debug("Failed to set billing reconciliation metrics")
         pass  # nosec B110
 
     logger.info(

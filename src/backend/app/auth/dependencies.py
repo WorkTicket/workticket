@@ -101,6 +101,7 @@ async def _get_signing_key_from_jwt(token: str):
         if signing_key:
             return signing_key
     except Exception:
+        logger.debug("PyJWKClient key resolution failed, falling back to cached JWKS")
         pass  # nosec B110
 
     if not kid:
@@ -154,6 +155,7 @@ async def _get_signing_key_from_redis(token: str):
                 if r:
                     await r.delete(f"{_redis_jwks_prefix}{kid}")
         except Exception:
+            logger.debug("Failed to delete corrupted JWKS key from Redis cache")
             pass  # nosec B110
         return None
 
@@ -164,6 +166,7 @@ async def _cache_key_in_redis(kid: str, key_data: dict):
         if r:
             await r.setex(f"{_redis_jwks_prefix}{kid}", _redis_jwks_ttl, json.dumps(key_data))
     except Exception:
+        logger.debug("Failed to cache JWKS key in Redis")
         pass  # nosec B110
 
 

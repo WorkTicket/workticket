@@ -43,6 +43,7 @@ class ConcurrencyLimiter:
                 if r:
                     await r.expire(self._redis_key, 60)
             except Exception:
+                logger.debug("AI concurrency heartbeat Redis expire failed, heartbeat will retry")
                 pass  # nosec B110
             if self._active_count == 0:
                 break
@@ -78,6 +79,7 @@ class ConcurrencyLimiter:
                 if new_count <= 0:
                     await r.delete(self._redis_key)
             except Exception:
+                logger.debug("AI concurrency release Redis decrement failed, continuing")
                 pass  # nosec B110
         async with self._lock:
             self._active_count -= 1

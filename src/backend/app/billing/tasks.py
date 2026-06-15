@@ -39,7 +39,8 @@ async def _retry_dead_letter_job(dead_letter_id: str) -> dict[str, Any]:
 
                     inc_dlq_retry("max_retries_exceeded")
                 except Exception:
-                    pass  # nosec B110
+                    logger.debug("Billing metric operation failed, continuing")
+        pass  # nosec B110
                 return {"status": "error", "message": "Max retries exceeded"}
 
             result = await db.execute(select(Job).where(Job.id == dlq_entry.job_id))
@@ -108,7 +109,8 @@ async def _retry_dead_letter_job(dead_letter_id: str) -> dict[str, Any]:
 
                 inc_dlq_retry("success")
             except Exception:
-                pass  # nosec B110
+                logger.debug("Billing metric operation failed, continuing")
+        pass  # nosec B110
 
             return {
                 "status": "success",
@@ -125,7 +127,8 @@ async def _retry_dead_letter_job(dead_letter_id: str) -> dict[str, Any]:
 
                 inc_dlq_retry("error")
             except Exception:
-                pass  # nosec B110
+                logger.debug("Billing metric operation failed, continuing")
+        pass  # nosec B110
             return {"status": "error", "message": str(e)}
 
 
@@ -190,7 +193,8 @@ def _acquire_beat_lock(task_name: str, ttl: int = 300) -> bool:
                             "workticket_beat_lock_skipped_total", {"task": task_name, "reason": "local_cache"}
                         )
                     except Exception:
-                        pass  # nosec B110
+                        logger.debug("Billing metric operation failed, continuing")
+        pass  # nosec B110
                     return False
 
             logger.warning(
@@ -202,7 +206,8 @@ def _acquire_beat_lock(task_name: str, ttl: int = 300) -> bool:
 
                 increment_counter("workticket_beat_lock_skipped_total", {"task": task_name, "reason": "redis_down"})
             except Exception:
-                pass  # nosec B110
+                logger.debug("Billing metric operation failed, continuing")
+        pass  # nosec B110
             return True
 
 
@@ -251,7 +256,8 @@ def retry_expired_dead_letter_jobs():
                     total_result = await db.execute(select(DeadLetterJob))
                     set_dlq_entries(len(total_result.scalars().all()))
                 except Exception:
-                    pass  # nosec B110
+                    logger.debug("Billing metric operation failed, continuing")
+        pass  # nosec B110
             except Exception as e:
                 logger.error("Failed to scan for dead letter jobs: %s", e)
                 raise
@@ -371,6 +377,7 @@ def replay_dlq_fallback(self):
         _file_size = _os.path.getsize(_dlq_fallback_path)
         set_dlq_fallback_file_size(_file_size)
     except Exception:
+        logger.debug("Billing metric operation failed, continuing")
         pass  # nosec B110
 
     replayed = 0

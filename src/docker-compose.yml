@@ -36,10 +36,9 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    # volumes:
-    #   - ./nginx/ssl/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
-    # DH params: run `openssl dhparam -out src/nginx/ssl/dhparam.pem 4096` then uncomment above
-    # and add `ssl_dhparam /etc/nginx/ssl/dhparam.pem;` to the server block in nginx.conf
+    volumes:
+      - ./nginx/ssl/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
+    # DH params: run `openssl dhparam -out src/nginx/ssl/dhparam.pem 4096` before deploying
 
   postgres:
     image: pgvector/pgvector:pg16

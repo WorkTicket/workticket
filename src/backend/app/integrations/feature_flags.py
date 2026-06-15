@@ -25,7 +25,8 @@ class IntegrationFeatureFlags:
             if val is not None:
                 return val == b"1"  # type: ignore[no-any-return]
         except Exception:
-            pass  # nosec B110
+            logger.debug("Integration flag Redis operation failed, using default")
+        pass  # nosec B110
         return True
 
     def get_flag(self, provider: str) -> ConnectorFeatureFlag:
@@ -35,7 +36,8 @@ class IntegrationFeatureFlags:
             if val is not None:
                 return ConnectorFeatureFlag(val.decode())
         except Exception:
-            pass  # nosec B110
+            logger.debug("Integration flag Redis operation failed, using default")
+        pass  # nosec B110
         return ConnectorFeatureFlag.ENABLED
 
     def set_flag(self, provider: str, flag: ConnectorFeatureFlag):

@@ -148,6 +148,7 @@ async def validate_stripe_ip(client_ip: str) -> bool:
 
             increment_counter("workticket_stripe_ip_cache_empty_warning", {})
         except Exception:
+            logger.debug("Failed to increment Stripe IP cache empty warning metric")
             pass  # nosec B110
     return True
 

@@ -30,7 +30,8 @@ class AnomalyDetector:
                 if data:
                     return {"avg_ms": float(data.get(b"avg_ms", 0)), "samples": int(data.get(b"samples", 0))}
             except Exception:
-                pass  # nosec B110
+                logger.debug("Redis baseline operation failed, falling back to local cache")
+        pass  # nosec B110
         return self._local_baseline.get(key)
 
     async def _set_baseline(self, key: str, baseline: dict):
@@ -40,7 +41,8 @@ class AnomalyDetector:
                 await r.hset(f"baseline:{key}", mapping=baseline)
                 await r.expire(f"baseline:{key}", 1800)
             except Exception:
-                pass  # nosec B110
+                logger.debug("Redis baseline operation failed, falling back to local cache")
+        pass  # nosec B110
         self._local_baseline[key] = baseline
 
     async def check_latency_anomaly(

@@ -61,6 +61,7 @@ async def export_my_data(
     except HTTPException:
         raise
     except Exception:
+        logger.debug("Redis rate limit check failed for compliance export, allowing request")
         pass  # nosec B110
 
     # Collect user data
@@ -211,6 +212,7 @@ async def delete_my_data(
                 "1",
             )
     except Exception:
+        logger.debug("Failed to blacklist session in Redis during data deletion, continuing")
         pass  # nosec B110
 
     await db.flush()

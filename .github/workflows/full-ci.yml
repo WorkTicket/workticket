@@ -73,6 +73,8 @@ jobs:
         run: pip install "pytest>=8.0" "pytest-asyncio>=0.24" "httpx>=0.28"
       - name: Run backend syntax check
         run: cd src/backend && python -c "import app.main; print('Backend imports OK')"
+      - name: Generate test environment
+        run: cd src/backend && bash scripts/generate-test-env.sh
       - name: Run tests
         run: cd src/backend && python -m pytest tests/ -v --tb=short --cov=app --cov-report=xml --cov-report=term
         env:

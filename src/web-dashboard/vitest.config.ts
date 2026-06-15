@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["app/**", "components/**", "lib/**"],
+      include: ["app/**", "components/**", "lib/**", "stores/**", "middleware.ts"],
       thresholds: {
         statements: 70,
         branches: 60,

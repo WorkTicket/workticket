@@ -162,6 +162,7 @@ def evaluate_rollback(error_rate_pct: float, p95_latency_ms: float) -> RollbackD
                     },
                 )
             except Exception:
+                logger.debug("Failed to increment canary rollback metric")
                 pass  # nosec B110
         return RollbackDecision(
             should_rollback=True,
@@ -229,6 +230,7 @@ def promote_canary_stage() -> dict:
             },
         )
     except Exception:
+        logger.debug("Failed to increment canary promotion metric")
         pass  # nosec B110
 
     return {"promoted": True, "new_stage": next_stage, "reason": f"elapsed={elapsed:.0f}s"}

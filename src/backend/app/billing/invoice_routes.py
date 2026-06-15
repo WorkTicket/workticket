@@ -274,6 +274,7 @@ async def stripe_webhook(
 
                 observe_stripe_webhook_latency(_wh_ms)
             except Exception:
+                logger.debug("Failed to observe Stripe webhook latency metric")
                 pass  # nosec B110
             return result
         except HTTPException:

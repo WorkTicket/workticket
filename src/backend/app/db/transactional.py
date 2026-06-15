@@ -27,6 +27,7 @@ async def _propagate_rls_context(source_session: AsyncSession, target_session: A
             bypass_res = await source_session.execute(__import__("sqlalchemy").text("SHOW app.bypass_rls"))
             bypass_val = bypass_res.scalar()
         except Exception:
+            logger.debug("RLS bypass check failed, propagating RLS context normally")
             pass  # nosec B110
         if bypass_val and bypass_val.strip().lower() == "true":
             await set_rls_bypass_context(target_session)

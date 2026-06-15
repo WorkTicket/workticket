@@ -214,6 +214,7 @@ async def deactivate_user(
         if r:
             await r.setex(f"session_blacklist:{payload.user_id}:{user_to_deactivate.token_version}", 86400, "1")
     except Exception:
+        logger.debug("Failed to blacklist session in Redis during user deactivation, continuing")
         pass  # nosec B110
 
     await db.flush()

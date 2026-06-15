@@ -109,6 +109,7 @@ class CircuitBreaker:
                 state = await r.hget(f"{self._redis_prefix}", "open")
                 return state != "1"  # type: ignore[no-any-return]
             except Exception:
+                logger.debug("Failed to check circuit breaker state in Redis, falling back to local state")
                 pass  # nosec B110
         async with self._lock:
             if self._state == CircuitState.CLOSED:
@@ -175,6 +176,7 @@ class CircuitBreaker:
                         await r.hset(f"{self._redis_prefix}", "last_failure", str(int(time.time())))
                         await r.expire(f"{self._redis_prefix}", int(self.cooldown_seconds * 2))
                     except Exception:
+                        logger.debug("Failed to persist circuit breaker state in Redis after half-open failure")
                         pass  # nosec B110
                 return
             if self._failure_count >= self.failure_threshold:
@@ -196,6 +198,7 @@ class CircuitBreaker:
                         await r.hset(f"{self._redis_prefix}", "half_open_probed", "0")
                         await r.expire(f"{self._redis_prefix}", int(self.cooldown_seconds * 2))
                     except Exception:
+                        logger.debug("Failed to persist circuit breaker state in Redis after threshold breach")
                         pass  # nosec B110
 
     async def reset(self):

@@ -56,6 +56,7 @@ def consume_retry_budget(task_name: str, cost: float = 1.0) -> bool:
                 {"priority": task_name.split(".")[0] if "." in task_name else task_name},
             )
         except Exception:
+            logger.debug("Failed to increment retry budget shed metric")
             pass  # nosec B110
         return False
 

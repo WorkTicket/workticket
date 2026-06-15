@@ -38,16 +38,16 @@ locust -f locustfile.py --host=https://api.workticket.app \
 
 | Endpoint | Params | Verified? |
 |----------|--------|-----------|
-| `GET /api/v1/jobs?page=&page_size=` | page, page_size | ❌ |
-| `GET /api/v1/jobs/customers?page=&page_size=` | page, page_size | ❌ |
-| `GET /api/v1/quotes?page=&page_size=` | page, page_size | ❌ |
-| `GET /api/v1/estimates?page=&page_size=` | page, page_size | ❌ |
-| `GET /api/v1/billing/usage?page=&page_size=` | page, page_size | ❌ |
-| `GET /api/v1/media/{job_id}?page=&page_size=` | page, page_size | ✅ |
-| `GET /api/v1/analytics/events?page=&page_size=` | page, page_size | ❌ |
-| `GET /api/v1/analytics/events/cursor?cursor=&limit=` | cursor, limit | ❌ |
-| `GET /api/v1/billing/dlq/entries?page=&page_size=` | page, page_size | ❌ |
-| `GET /api/v1/tracing/traces?page=&page_size=` | page, page_size | ❌ |
+| `GET /api/v1/jobs?page=&page_size=` | page, page_size | ✅ |
+| `GET /api/v1/jobs/customers?page=&page_size=` | page, page_size | ✅ |
+| `GET /api/v1/quotes?page=&page_size=` | page, page_size | ✅ |
+| `GET /api/v1/estimates?page=&page_size=` | page, page_size | ✅ |
+| `GET /api/v1/billing/usage?page=&page_size=` | page, page_size | ✅ |
+| `GET /api/v1/media/{job_id}?page=&page_size=` | page, page_size | N/A |
+| `GET /api/v1/analytics/events?page=&page_size=` | page, page_size | ✅ |
+| `GET /api/v1/analytics/events/cursor?cursor=&limit=` | cursor, limit | ✅ |
+| `GET /api/v1/billing/dlq/entries?page=&page_size=` | page, page_size | ✅ |
+| `GET /api/v1/tracing/traces?page=&page_size=` | page, page_size | ✅ |
 
 ### Pagination Test Script
 

@@ -85,7 +85,8 @@ class LoadSheddingMiddleware(BaseHTTPMiddleware):
 
                 increment_counter("workticket_requests_shed_total", {"priority": str(priority)})
             except Exception:
-                pass  # nosec B110
+                logger.debug("Load shedding metric increment failed, continuing")
+        pass  # nosec B110
             return Response(
                 content='{"error": "server_overloaded", "retry_after": 5}',
                 status_code=503,
@@ -107,7 +108,8 @@ class LoadSheddingMiddleware(BaseHTTPMiddleware):
 
                 increment_counter("workticket_requests_shed_total", {"priority": str(priority)})
             except Exception:
-                pass  # nosec B110
+                logger.debug("Load shedding metric increment failed, continuing")
+        pass  # nosec B110
             return Response(
                 content='{"error": "server_overloaded", "retry_after": 2}',
                 status_code=503,
