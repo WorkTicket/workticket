@@ -18,13 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Generate SBOM with Syft
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: src/${{ matrix.project }}
           format: cyclonedx-json
           output-file: sbom-${{ matrix.project }}-cyclonedx.json
       - name: Generate SPDX SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: src/${{ matrix.project }}
           format: spdx-json
