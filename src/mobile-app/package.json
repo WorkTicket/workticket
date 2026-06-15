@@ -61,7 +61,7 @@
     "react-test-renderer": "18.3.1",
     "tailwindcss": "^3.4.0",
     "typescript": "~5.5.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   },
   "overrides": {
     "@xmldom/xmldom": "0.9.10",
