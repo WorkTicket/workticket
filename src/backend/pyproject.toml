@@ -40,7 +40,7 @@ dependencies = [
     "psycopg2-binary==2.9.10",
     "prometheus-client==0.21.0",
     "prometheus-fastapi-instrumentator==7.0.1",
-    "posthog==7.18.0",
+    "posthog==7.18.3",
 ]
 
 [project.optional-dependencies]
