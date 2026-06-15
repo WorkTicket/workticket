@@ -44,14 +44,14 @@ jobs:
             src/web-dashboard src/mobile-app
 
       - name: Upload Python SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: semgrep-python.sarif
           category: semgrep-python
 
       - name: Upload TypeScript SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: semgrep-typescript.sarif
