@@ -337,51 +337,90 @@ async def test_cross_tenant_invoice_access_prevented(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="RLS requires PostgreSQL SECURITY DEFINER functions not available in test DB")
 async def test_raw_sql_tenant_isolation(client: AsyncClient):
-    """Verify that raw SQL queries are still blocked by RLS even without ORM listener."""
-    from sqlalchemy import text
+    """Verify that RLS blocks cross-tenant access at the database level."""
+    from sqlalchemy import text as sa_text
 
-    from app.database import AsyncSessionLocal
-    from app.db.rls import clear_rls_tenant_context, set_rls_tenant_context
+    from tests.conftest import _ensure_test_engine
 
-    async with AsyncSessionLocal() as db:
-        await set_rls_tenant_context(db, uuid.UUID("00000000-0000-0000-0000-000000000001"))
-        result = await db.execute(
-            text("SELECT company_id FROM jobs WHERE company_id != '00000000-0000-0000-0000-000000000001' LIMIT 1")
+    _ensure_test_engine()
+    from tests.conftest import _test_engine
+
+    tenant_a = str(uuid.UUID("00000000-0000-0000-0000-000000000001"))
+    tenant_b = str(uuid.UUID("00000000-0000-0000-0000-000000000099"))
+
+    async with _test_engine.connect() as conn:
+        await conn.execute(sa_text(f"SELECT set_config('app.current_tenant_id', '{tenant_a}', FALSE)"))
+        result = await conn.execute(sa_text("SELECT company_id FROM jobs"))
+        for row in result:
+            assert str(row.company_id) == tenant_a, (
+                f"RLS leak: job belongs to {row.company_id}, not tenant_a {tenant_a}"
+            )
+        await conn.execute(sa_text("SELECT set_config('app.current_tenant_id', '', FALSE)"))
+
+    async with _test_engine.connect() as conn:
+        tenant_b = str(uuid.UUID("00000000-0000-0000-0000-000000000099"))
+
+        await conn.execute(sa_text("DROP ROLE IF EXISTS _rls_test_role"))
+        await conn.execute(sa_text("CREATE ROLE _rls_test_role"))
+        await conn.execute(sa_text("GRANT SELECT ON jobs TO _rls_test_role"))
+        await conn.commit()
+
+        await conn.execute(sa_text(f"SELECT set_config('app.current_tenant_id', '{tenant_b}', FALSE)"))
+        await conn.execute(sa_text("SET ROLE _rls_test_role"))
+        result = await conn.execute(sa_text("SELECT company_id FROM jobs"))
+        rows = result.all()
+        await conn.execute(sa_text("RESET ROLE"))
+        await conn.execute(sa_text("REVOKE ALL ON jobs FROM _rls_test_role"))
+        await conn.execute(sa_text("DROP ROLE IF EXISTS _rls_test_role"))
+        await conn.commit()
+        assert len(rows) == 0, (
+            f"RLS not enforced: {len(rows)} job(s) visible for tenant_b, expected 0"
         )
-        cross_tenant_job = result.scalar_one_or_none()
-        assert cross_tenant_job is None, "RLS should prevent cross-tenant raw SQL access"
-        await clear_rls_tenant_context(db)
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="RLS requires PostgreSQL SECURITY DEFINER functions not available in test DB")
 async def test_disabled_orm_listener_still_secured_by_rls(client: AsyncClient):
-    """Verify RLS still enforces isolation even if ORM auto-filter is bypassed."""
-    from sqlalchemy import select
+    """Verify RLS still enforces isolation at DB level with both tenants."""
+    from sqlalchemy import select, text as sa_text
 
-    from app.database import AsyncSessionLocal
-    from app.db.rls import clear_rls_tenant_context, set_rls_tenant_context
     from app.jobs.models import Job
+    from tests.conftest import TestSessionLocal, _ensure_test_engine
 
-    async with AsyncSessionLocal() as db:
-        tenant_a = uuid.UUID("00000000-0000-0000-0000-000000000001")
-        tenant_b = uuid.UUID("00000000-0000-0000-0000-000000000099")
+    _ensure_test_engine()
+    from tests.conftest import _test_engine
 
-        await set_rls_tenant_context(db, tenant_a)
+    tenant_a = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    tenant_b = uuid.UUID("00000000-0000-0000-0000-000000000099")
 
+    async with _test_engine.connect() as conn:
+        await conn.execute(sa_text("DROP ROLE IF EXISTS _rls_test_role"))
+        await conn.execute(sa_text("CREATE ROLE _rls_test_role"))
+        await conn.execute(sa_text("GRANT SELECT ON jobs TO _rls_test_role"))
+        await conn.commit()
+
+    async with TestSessionLocal() as db:
+        conn = await db.connection()
+        await conn.exec_driver_sql(f"SELECT set_config('app.current_tenant_id', '{tenant_a}', FALSE)")
+        await conn.exec_driver_sql("SET ROLE _rls_test_role")
         result = await db.execute(select(Job).limit(50))
         jobs = result.scalars().all()
+        await conn.exec_driver_sql("RESET ROLE")
         for j in jobs:
             assert j.company_id == tenant_a, f"Job {j.id} has company_id {j.company_id} != tenant_a {tenant_a}"
+        await conn.exec_driver_sql(f"SELECT set_config('app.current_tenant_id', '', FALSE)")
+        await db.commit()
 
-        await clear_rls_tenant_context(db)
-
-        await set_rls_tenant_context(db, tenant_b)
+    async with TestSessionLocal() as db:
+        conn = await db.connection()
+        await conn.exec_driver_sql(f"SELECT set_config('app.current_tenant_id', '{tenant_b}', FALSE)")
+        await conn.exec_driver_sql("SET ROLE _rls_test_role")
         result = await db.execute(select(Job).limit(50))
         jobs = result.scalars().all()
-        for j in jobs:
-            assert j.company_id == tenant_b, f"Job {j.id} has company_id {j.company_id} != tenant_b {tenant_b}"
+        await conn.exec_driver_sql("RESET ROLE")
+        assert len(jobs) == 0, f"RLS not enforced: {len(jobs)} job(s) visible for tenant_b, expected 0"
 
-        await clear_rls_tenant_context(db)
+    async with _test_engine.connect() as conn:
+        await conn.execute(sa_text("REVOKE ALL ON jobs FROM _rls_test_role"))
+        await conn.execute(sa_text("DROP ROLE IF EXISTS _rls_test_role"))
+        await conn.commit()

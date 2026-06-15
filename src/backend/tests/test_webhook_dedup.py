@@ -1,12 +1,14 @@
 import json
 import os
 import time
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
 import pytest
 from sqlalchemy import select
 
+from app.billing.models import BillingAccount
 from app.jobs.models import Company
 
 _NOW = int(time.time())
@@ -29,6 +31,20 @@ async def _seed_company(db):
     )).scalar_one_or_none()
     if company:
         company.stripe_customer_id = "cus_test"
+        company.stripe_subscription_id = None
+        await db.flush()
+        account = (await db.execute(
+            select(BillingAccount).where(BillingAccount.company_id == company.id)
+        )).scalar_one_or_none()
+        if account:
+            account.billing_period_start = datetime(2020, 1, 1, tzinfo=UTC)
+        else:
+            db.add(BillingAccount(
+                company_id=company.id,
+                plan=company.subscription_plan or "free",
+                monthly_quota_acu=1000,
+                billing_period_start=datetime(2020, 1, 1, tzinfo=UTC),
+            ))
         await db.flush()
     return company
 
@@ -43,12 +59,15 @@ def mock_redis():
 @pytest.fixture(autouse=True)
 def _patch_deps():
     os.environ["STRIPE_WEBHOOK_CLOCK_SKEW_TOLERANCE"] = "999999999"
+    async def _mock_to_thread(fn, **kw):
+        return fn()
+
     with (
         patch("app.billing.invoice_routes._check_global_webhook_rate", AsyncMock()),
         patch("app.billing.invoice_routes._validate_stripe_ip", AsyncMock()),
         patch("app.billing.invoice_routes._check_webhook_rate", AsyncMock()),
         patch("app.billing.invoice_routes.stripe.Subscription.retrieve") as mock_sub_retrieve,
-        patch("app.billing.invoice_routes.asyncio.to_thread", lambda fn, **kw: fn()),
+        patch("app.billing.invoice_routes.asyncio.to_thread", _mock_to_thread),
     ):
         mock_sub = MagicMock()
         mock_sub.customer = "cus_test"
@@ -180,7 +199,7 @@ async def test_duplicate_customer_subscription_deleted_dedup(client, mock_redis)
 
 @pytest.mark.asyncio
 async def test_different_event_types_same_id_not_dedup(client, mock_redis):
-    """Different event types with same ID should NOT be deduplicated."""
+    """Same Stripe event ID is always deduplicated regardless of event type."""
     from sqlalchemy import delete
 
     from app.billing.invoice_routes import _process_webhook
@@ -231,7 +250,7 @@ async def test_different_event_types_same_id_not_dedup(client, mock_redis):
 
             with patch("app.billing.invoice_routes.stripe.Webhook.construct_event", return_value=payload2):
                 result2 = await _process_webhook(mock_request, db, "13.248.128.1")
-                assert result2.get("deduplicated") is not True, "Different event type should not be dedup"
+                assert result2.get("deduplicated") is True, "Same ID should be deduplicated regardless of event type"
 
 
 @pytest.mark.asyncio

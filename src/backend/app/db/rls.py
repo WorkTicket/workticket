@@ -62,10 +62,7 @@ async def set_rls_tenant_context(session: AsyncSession, tenant_id: UUID) -> None
         tenant_id: The UUID of the company/tenant to scope to
     """
     try:
-        await session.execute(
-            text("SET app.current_tenant_id = :tenant_id"),
-            {"tenant_id": str(tenant_id)},
-        )
+        await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}'"))
     except Exception as e:
         logger.debug(
             "Failed to set RLS tenant context for %s: %s",

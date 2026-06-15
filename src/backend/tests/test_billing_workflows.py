@@ -172,24 +172,35 @@ async def override_get_db():
 @pytest.mark.asyncio
 async def test_webhook_rate_limiter_blocks_excessive(client: AsyncClient, monkeypatch):
     """4C: Webhook rate limiter blocks requests exceeding 10/60s."""
+    from unittest.mock import MagicMock
+
+    from app.ai import rate_limiter as rl_mod
     from app.billing import invoice_routes
 
-    monkeypatch.setattr(invoice_routes, "_validate_stripe_ip", AsyncMock())
-    monkeypatch.setattr(invoice_routes, "_check_webhook_rate", AsyncMock())
-    monkeypatch.setattr(invoice_routes, "_acquire_webhook_slot", AsyncMock())
-    monkeypatch.setattr(invoice_routes, "_release_webhook_slot", AsyncMock())
+    _redis = MagicMock()
+    _counts: dict[str, int] = {}
 
-    responses = []
-    for _i in range(12):
-        response = await client.post(
-            f"{BILLING_PREFIX}/webhook",
-            json={"type": "test"},
-            headers={"stripe-signature": "test_sig", "content-type": "application/json"},
-        )
-        responses.append(response.status_code)
+    async def _mock_get(key):
+        val = _counts.get(key, 0)
+        return str(val).encode()
 
-    rate_limited = [s for s in responses if s == 429]
-    assert len(rate_limited) > 0, "Rate limiter should block at least some requests"
+    _mock_pipe = MagicMock()
+    _mock_pipe.incr = MagicMock(side_effect=lambda key: _counts.update({key: _counts.get(key, 0) + 1}))
+    _mock_pipe.expire = MagicMock()
+    _mock_pipe.execute = AsyncMock()
+    _redis.pipeline.return_value = _mock_pipe
+    _redis.get = _mock_get
+    monkeypatch.setattr(rl_mod, "_get_redis", AsyncMock(return_value=_redis))
+
+    rate_limited = 0
+    for _ in range(12):
+        try:
+            await invoice_routes._check_webhook_rate("192.0.2.1")
+        except HTTPException as e:
+            if e.status_code == 429:
+                rate_limited += 1
+
+    assert rate_limited > 0, "Rate limiter should block at least some requests"
 
 
 @pytest.mark.asyncio

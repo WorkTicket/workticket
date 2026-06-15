@@ -186,22 +186,25 @@ async def transition_job_state(
             job.state_cycle_reset_at = None
 
     if target_state == AIProcessingState.queued and current == AIProcessingState.none:
-        import time as _time
-
-        _now_ts = _time.time()
+        _now_dt = datetime.now(UTC)
+        _now_ts = _now_dt.timestamp()
         # Time-based decay: reduce counter by 1 for each hour since last cycle
         last_reset = getattr(job, "state_cycle_reset_at", None)
         if last_reset is None:
-            last_reset = _now_ts
-        hours_since_reset = max(0.0, (_now_ts - last_reset) / 3600.0)
+            last_reset_ts = _now_ts
+        elif isinstance(last_reset, datetime):
+            last_reset_ts = last_reset.timestamp()
+        else:
+            last_reset_ts = float(last_reset)
+        hours_since_reset = max(0.0, (_now_ts - last_reset_ts) / 3600.0)
         effective_counter = max(0, (job.state_cycle_counter or 0) - int(hours_since_reset))
         job.state_cycle_counter = effective_counter + 1
         if hasattr(job, "state_cycle_reset_at"):
-            job.state_cycle_reset_at = _now_ts
+            job.state_cycle_reset_at = _now_dt
 
         if effective_counter > 0:
             delay_seconds = min(60 * (2 ** (effective_counter - 1)), 3600)  # type: ignore[operator]
-            elapsed = _now_ts - last_reset
+            elapsed = _now_ts - last_reset_ts
             if elapsed < delay_seconds:
                 logger.warning(
                     "Job %s state cycle backoff: cycle %d, delay=%.0fs, elapsed=%.0fs — blocking transition to %s",

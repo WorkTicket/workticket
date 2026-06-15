@@ -39,13 +39,74 @@ def _ensure_test_engine():
 async def setup_db():
     _ensure_test_engine()
     async with _test_engine.begin() as conn:
-        await conn.execute(__import__("sqlalchemy").text(
+        sa_text = __import__("sqlalchemy").text
+        await conn.execute(sa_text(
             "DO $$ DECLARE r RECORD; BEGIN "
             "FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP "
             "EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE'; "
             "END LOOP; END $$;"
         ))
+        await conn.execute(sa_text(
+            "DO $$ DECLARE r RECORD; BEGIN "
+            "FOR r IN (SELECT typname FROM pg_type WHERE typnamespace = "
+            "(SELECT oid FROM pg_namespace WHERE nspname = 'public') AND typtype = 'e') LOOP "
+            "EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE'; "
+            "END LOOP; END $$;"
+        ))
         await conn.run_sync(Base.metadata.create_all)
+
+    # RLS setup in a separate transaction to avoid aborting the main transaction
+    async with _test_engine.begin() as conn:
+        sa_text = __import__("sqlalchemy").text
+        _TENANT_SCOPED_TABLES = [
+            "users", "customers", "jobs", "job_media", "ai_outputs",
+            "quotes", "billing_accounts", "usage_ledger", "invoices",
+            "company_pricing_brains", "services", "estimates",
+            "estimate_line_items", "historical_job_data", "ai_job_estimates",
+            "notifications", "push_tokens", "analytics_events", "companies",
+        ]
+
+        await conn.execute(sa_text(
+            "DO $$ BEGIN "
+            "  EXECUTE 'ALTER DATABASE ' || current_database() || "
+            "  ' SET app.current_tenant_id TO '''' '; "
+            "END $$"
+        ))
+        await conn.execute(sa_text(
+            "DO $$ BEGIN "
+            "  EXECUTE 'ALTER DATABASE ' || current_database() || "
+            "  ' SET app.bypass_rls TO '''' '; "
+            "END $$"
+        ))
+
+        for table in _TENANT_SCOPED_TABLES:
+            result = await conn.execute(
+                sa_text("SELECT column_name FROM information_schema.columns WHERE table_name = :table AND column_name = 'company_id'"),
+                {"table": table},
+            )
+            if not result.fetchone():
+                continue
+            await conn.execute(sa_text(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"))
+            await conn.execute(sa_text(f"DO $$ BEGIN DROP POLICY IF EXISTS tenant_isolation ON {table}; END $$"))
+            await conn.execute(sa_text(f"DO $$ BEGIN DROP POLICY IF EXISTS tenant_isolation_bypass ON {table}; END $$"))
+            if table == "companies":
+                await conn.execute(sa_text(
+                    f"CREATE POLICY tenant_isolation ON {table} "
+                    f"USING (id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) "
+                    f"WITH CHECK (id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)"
+                ))
+            else:
+                await conn.execute(sa_text(
+                    f"CREATE POLICY tenant_isolation ON {table} "
+                    f"USING (company_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) "
+                    f"WITH CHECK (company_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)"
+                ))
+            await conn.execute(sa_text(
+                f"CREATE POLICY tenant_isolation_bypass ON {table} "
+                f"USING (current_setting('app.bypass_rls', true) = 'true') "
+                f"WITH CHECK (current_setting('app.bypass_rls', true) = 'true')"
+            ))
+            await conn.execute(sa_text(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY"))
     async with TestSessionLocal() as session:
         from sqlalchemy import select
         from app.jobs.models import Job
@@ -71,6 +132,18 @@ async def setup_db():
                 token_version=0,
             )
             session.add(user)
+            await session.flush()
+
+        other_company = await session.execute(
+            select(Company).where(Company.id == uuid.UUID("00000000-0000-0000-0000-000000000099"))
+        )
+        if not other_company.scalar_one_or_none():
+            session.add(Company(
+                id=uuid.UUID("00000000-0000-0000-0000-000000000099"),
+                name="Tenant B Company",
+                trade_type="plumbing",
+                subscription_plan="free",
+            ))
             await session.flush()
 
         ws_job = await session.execute(
@@ -102,27 +175,75 @@ async def setup_db():
     _prev_engine = getattr(app_db, "_engine", None)
     app_db._engine = _test_engine
     app_db.engine = _test_engine
+    _prev_readonly_engine = getattr(app_db, "_readonly_engine", None)
+    _prev_readonly_sessionmaker = getattr(app_db, "_readonly_sessionmaker", None)
+    _prev_readonly_init_done = getattr(app_db, "_readonly_engine_init_done", None)
+    app_db._readonly_engine = _test_engine
+    app_db._readonly_sessionmaker = TestSessionLocal
+    app_db._readonly_engine_init_done = True
     yield
     app_db._engine = _prev_engine
     app_db.engine = _prev_engine
     app_db.AsyncSessionLocal._set(TestSessionLocal)
+    if _prev_readonly_engine is not None:
+        app_db._readonly_engine = _prev_readonly_engine
+    if _prev_readonly_sessionmaker is not None:
+        app_db._readonly_sessionmaker = _prev_readonly_sessionmaker
+    if _prev_readonly_init_done is not None:
+        app_db._readonly_engine_init_done = _prev_readonly_init_done
     _ensure_test_engine()
     async with _test_engine.begin() as conn:
-        await conn.execute(__import__("sqlalchemy").text(
+        sa_text = __import__("sqlalchemy").text
+        await conn.execute(sa_text(
             "DO $$ DECLARE r RECORD; BEGIN "
             "FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP "
             "EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE'; "
             "END LOOP; END $$;"
         ))
+        await conn.execute(sa_text(
+            "DO $$ DECLARE r RECORD; BEGIN "
+            "FOR r IN (SELECT typname FROM pg_type WHERE typnamespace = "
+            "(SELECT oid FROM pg_namespace WHERE nspname = 'public') AND typtype = 'e') LOOP "
+            "EXECUTE 'DROP TYPE IF EXISTS ' || quote_ident(r.typname) || ' CASCADE'; "
+            "END LOOP; END $$;"
+        ))
 
 
 @pytest.fixture(autouse=True)
-def _bypass_rate_limit_middleware():
+def _bypass_rate_limiters():
     from unittest.mock import patch
     from app.middleware.rate_limit import RateLimitMiddleware
+    from app.ai.rate_limiter import rate_limiter
 
-    with patch.object(RateLimitMiddleware, "_check_rate", return_value=(True, "")):
+    with (
+        patch.object(RateLimitMiddleware, "_check_rate", return_value=(True, "")),
+        patch.object(rate_limiter, "check_global", return_value=True),
+        patch.object(rate_limiter, "check_user", return_value=True),
+        patch.object(rate_limiter, "check_tenant", return_value=True),
+        patch.object(rate_limiter, "check_ip", return_value=True),
+        patch.object(rate_limiter, "check_all", return_value=(True, "")),
+        patch("app.ai.rate_limiter._get_redis", return_value=None),
+    ):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _bypass_csrf_middleware():
+    from unittest.mock import patch
+    from app.middleware.csrf import CSRFProtectionMiddleware
+
+    with patch.object(CSRFProtectionMiddleware, "_origin_allowed", return_value=True):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _enable_ai_features(monkeypatch):
+    from unittest.mock import MagicMock
+
+    mock_settings = MagicMock()
+    mock_settings.ai_disabled = False
+    monkeypatch.setattr("app.ai.router.get_settings", lambda: mock_settings)
+    monkeypatch.setattr("app.ai.router._flags.is_enabled", lambda key: False)
 
 
 @pytest.fixture(autouse=True)
@@ -168,7 +289,7 @@ async def override_get_db() -> AsyncGenerator[AsyncSession, Any]:
 
 
 async def override_get_current_user() -> User:
-    return User(
+    user = User(
         id="test-user-id",
         company_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
         email="test@example.com",
@@ -176,6 +297,14 @@ async def override_get_current_user() -> User:
         role="owner",
         is_active=True,
     )
+    company = Company(
+        id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+        name="Test Company",
+        trade_type="hvac",
+        subscription_plan="free",
+    )
+    user.company = company
+    return user
 
 
 @pytest.fixture

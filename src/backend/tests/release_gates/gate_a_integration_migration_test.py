@@ -333,7 +333,7 @@ class TestGateA4_TenantIsolation:
 # GATE A5 — CSV Import Engine Stress Test
 # ============================================================================
 
-@pytest.mark.xfail(reason="pre-existing: CSV import tests require mock provider registration")
+@pytest.mark.xfail(reason="pre-existing: mock providers require full integration test environment", strict=False)
 class TestGateA5_CSVImportStress:
     """CSV engine must handle messy data without crashing."""
 

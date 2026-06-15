@@ -697,6 +697,7 @@ async def _process_webhook(
     else:
         logger.info("Unhandled Stripe webhook event type: %s", event_type)
 
+    return {"received": True}
 
 @router.get("/invoices/{invoice_id}/export")
 async def export_invoice(

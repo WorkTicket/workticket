@@ -79,6 +79,7 @@ async def test_websocket_verifies_token_version(client):
         user.is_active = False
         user.token_version = 2
         await db.flush()
+        await db.commit()
 
         payload = {
             "sub": "test-user-id",

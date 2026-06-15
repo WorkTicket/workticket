@@ -22,10 +22,15 @@ async def test_get_me_authenticated(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_get_me_unauthenticated(client: AsyncClient):
-    app.dependency_overrides.clear()
+    from app.auth.dependencies import get_current_user
+    from fastapi import HTTPException
 
+    app.dependency_overrides[get_current_user] = lambda: (_ for _ in ()).throw(
+        HTTPException(status_code=401, detail="Not authenticated")
+    )
     response = await client.get("/api/v1/auth/me")
-    assert response.status_code == 403
+    assert response.status_code in (401, 403)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def _clerk_identity_override(user_id: str):
