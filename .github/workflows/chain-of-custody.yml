@@ -50,7 +50,7 @@ jobs:
           EOF
 
       - name: Sign chain-of-custody attestation
-        uses: sigstore/cosign-installer@v3.6.0
+        uses: sigstore/cosign-installer@v4.1.2
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
