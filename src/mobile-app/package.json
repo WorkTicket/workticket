@@ -32,7 +32,7 @@
     "axios": "1.17.0",
     "expo": "~56.0.9",
     "expo-av": "~15.0.0",
-    "expo-camera": "~16.0.0",
+    "expo-camera": "~56.0.8",
     "expo-clipboard": "~7.0.0",
     "expo-constants": "~17.0.8",
     "expo-file-system": "~18.0.0",
