@@ -29,7 +29,7 @@
     "@clerk/clerk-expo": "2.19.39",
     "@react-native-community/netinfo": "^11.0.0",
     "@tanstack/react-query": "5.59.0",
-    "axios": "1.17.0",
+    "axios": "1.18.0",
     "expo": "~56.0.9",
     "expo-av": "~15.0.0",
     "expo-camera": "~16.0.0",
