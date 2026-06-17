@@ -88,7 +88,7 @@ def decay_risk_scores_task(self):
         return {"status": "skipped", "reason": "concurrent_execution_locked"}
 
     from app.billing.abuse import abuse_detector
-    from app.database import AsyncSessionLocal
+    from app.database import AsyncSessionLocal, is_retryable_error
 
     try:
 
@@ -100,8 +100,14 @@ def decay_risk_scores_task(self):
         _run_async(_run())
         _record_beat_execution("decay_risk_scores_task")
     except Exception as e:
-        logger.error("Risk score decay task failed: %s", e)
         _record_beat_execution("decay_risk_scores_task", -1)
+        if is_retryable_error(e) and self.request.retries < (self.max_retries or 3):
+            logger.warning(
+                "Serialization failure on decay_risk_scores (attempt %d/%d): %s — retrying",
+                self.request.retries + 1, (self.max_retries or 3) + 1, e,
+            )
+            raise self.retry(exc=e, countdown=2 ** (self.request.retries + 1)) from e
+        logger.error("Risk score decay task failed: %s", e)
         raise self.retry(exc=e) from e
 
 
@@ -128,7 +134,7 @@ def reset_billing_quotas(self):
 
     from app.billing.models import BillingAccount
     from app.billing.state_machine import PROCESSING_TIMEOUT_MINUTES
-    from app.database import AsyncSessionLocal
+    from app.database import AsyncSessionLocal, is_retryable_error
 
     # H-6: Execution lock to prevent overlapping beat executions
     # Removed the shared billing reconciliation lock — each task uses its own lock.
@@ -411,8 +417,14 @@ def reset_billing_quotas(self):
         _run_async(_run())
         _record_beat_execution("reset_billing_quotas")
     except Exception as e:
-        logger.error("Billing quota reset failed: %s", e)
         _record_beat_execution("reset_billing_quotas", -1)
+        if is_retryable_error(e) and self.request.retries < (self.max_retries or 3):
+            logger.warning(
+                "Serialization failure on reset_billing_quotas (attempt %d/%d): %s — retrying",
+                self.request.retries + 1, (self.max_retries or 3) + 1, e,
+            )
+            raise self.retry(exc=e, countdown=2 ** (self.request.retries + 1)) from e
+        logger.error("Billing quota reset failed: %s", e)
         raise self.retry(exc=e) from e
 
 
@@ -425,7 +437,7 @@ def collect_billing_debt(self):
 
     from app.ai.failure_classifier import classify_failure
     from app.billing.models import BillingAccount
-    from app.database import AsyncSessionLocal
+    from app.database import AsyncSessionLocal, is_retryable_error
     from app.monitoring.prometheus import set_acu_debt
 
     # H-6: Execution lock to prevent overlapping beat executions
@@ -488,9 +500,15 @@ def collect_billing_debt(self):
         _record_beat_execution("collect_billing_debt")
     except Exception as e:
         error_str = str(e)
+        _record_beat_execution("collect_billing_debt", -1)
+        if is_retryable_error(e) and self.request.retries < (self.max_retries or 3):
+            logger.warning(
+                "Serialization failure on collect_billing_debt (attempt %d/%d): %s — retrying",
+                self.request.retries + 1, (self.max_retries or 3) + 1, e,
+            )
+            raise self.retry(exc=e, countdown=2 ** (self.request.retries + 1)) from e
         failure_cat = classify_failure(error_str)
         logger.error("Billing debt collection failed: %s (category=%s)", error_str, failure_cat.value)
-        _record_beat_execution("collect_billing_debt", -1)
         if self.request.retries >= (self.max_retries or 3):
             logger.critical("collect_billing_debt exhausted retries — writing to DLQ")
             _move_to_dead_letter(
@@ -517,7 +535,7 @@ def purge_expired_dlq_entries(self):
     from sqlalchemy import delete
 
     from app.billing.dead_letter import DeadLetterJob
-    from app.database import AsyncSessionLocal
+    from app.database import AsyncSessionLocal, is_retryable_error
 
     try:
 
@@ -535,8 +553,14 @@ def purge_expired_dlq_entries(self):
         _run_async(_run())
         _record_beat_execution("purge_expired_dlq_entries")
     except Exception as e:
-        logger.error("Expired DLQ purge failed: %s", e)
         _record_beat_execution("purge_expired_dlq_entries", -1)
+        if is_retryable_error(e) and self.request.retries < (self.max_retries or 2):
+            logger.warning(
+                "Serialization failure on purge_expired_dlq (attempt %d/%d): %s — retrying",
+                self.request.retries + 1, (self.max_retries or 2) + 1, e,
+            )
+            raise self.retry(exc=e, countdown=2 ** (self.request.retries + 1)) from e
+        logger.error("Expired DLQ purge failed: %s", e)
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=60, queue="beat")
