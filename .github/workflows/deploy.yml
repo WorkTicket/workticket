@@ -96,7 +96,7 @@ jobs:
         run: |
           cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}"
       - name: Generate backend SPDX SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: ./src/backend
           format: spdx-json

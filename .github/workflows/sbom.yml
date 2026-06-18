@@ -16,35 +16,35 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Generate backend SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: ./src/backend
           format: cyclonedx-json
           output-file: sbom-backend.json
 
       - name: Generate dashboard SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: ./src/web-dashboard
           format: cyclonedx-json
           output-file: sbom-dashboard.json
 
       - name: Generate whisper-service SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: ./src/whisper-service
           format: cyclonedx-json
           output-file: sbom-whisper-service.json
 
       - name: Generate mobile-app SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: ./src/mobile-app
           format: cyclonedx-json
           output-file: sbom-mobile-app.json
 
       - name: Generate nginx SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.0
         with:
           path: ./src/nginx
           format: cyclonedx-json
