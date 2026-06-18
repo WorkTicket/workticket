@@ -19,7 +19,7 @@ dependencies = [
     "redis==5.2.0",
     "celery==5.4.0",
     "httpx==0.28.0",
-    "boto3==1.35.0",
+    "boto3==1.43.29",
     "stripe==10.12.0",
     "sentry-sdk[celery]==2.15.0",
     "python-multipart>=0.0.27",
