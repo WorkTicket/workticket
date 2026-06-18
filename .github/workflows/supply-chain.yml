@@ -30,7 +30,7 @@ jobs:
           format: spdx-json
           output-file: sbom-${{ matrix.project }}-spdx.json
       - name: Upload SBOMs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-${{ matrix.project }}
           path: sbom-${{ matrix.project }}-*.json
@@ -52,7 +52,7 @@ jobs:
           pip install pip-audit
           pip-audit --desc on -r requirements.txt --format json | tee pip-audit-report.json
       - name: Upload audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pip-audit-${{ matrix.project }}
           path: src/${{ matrix.project }}/pip-audit-report.json
